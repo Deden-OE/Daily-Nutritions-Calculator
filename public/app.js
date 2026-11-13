@@ -416,7 +416,18 @@ function renderHari() {
   <p class="muted small">Skor naik seiring makanan dicatat sepanjang hari. 100 = semua zat gizi di kategori itu memenuhi target.</p>`;
 
   // Batasi
-  h += `<div class="card"><h3>🚦 Batasi</h3>${macroBar('gula', tot, C)}${macroBar('natrium', tot, C)}${macroBar('lemak_jenuh', tot, C)}${macroBar('kolesterol', tot, C)}</div>`;
+  h += `<div class="card"><h3>🚦 Batasi</h3><div class="muted small">Usahakan tidak melewati batas harian</div>${macroBar('gula', tot, C)}${macroBar('natrium', tot, C)}${macroBar('lemak_jenuh', tot, C)}${macroBar('kolesterol', tot, C)}</div>`;
+
+  // Cukupi
+  const pTarget = Math.max(20, Math.round(C.t.protein.v * 0.25 / 5) * 5);
+  const pm = MEALS.slice(0, 3).map(([m, label]) => {
+    const v = ents.filter(e => e.m === m).reduce((a, e) => a + (entryVal(e, 'protein') || 0), 0);
+    const cls = v >= pTarget ? 'good' : v >= pTarget * 0.6 ? 'warn' : v > 0 ? 'bad' : '';
+    return `<div class="pm"><span class="muted small">${label}</span><b class="num">${fmt(v)}<small> g</small></b><div class="bar"><i class="${cls}" style="width:${clamp(v / pTarget * 100, 0, 100).toFixed(1)}%"></i></div></div>`;
+  }).join('');
+  h += `<div class="card"><h3>💪 Cukupi</h3><div class="muted small">Zat gizi penting yang sering kurang, usahakan mencapai target</div>
+    ${['kalium', 'kalsium', 'vitd', 'besi', 'magnesium', 'seng'].filter(k => C.t[k]).map(k => macroBar(k, tot, C)).join('')}
+    <div class="macro"><div class="h"><span>Protein per makan utama</span><span class="muted num">target ≥ ${pTarget} g</span></div><div class="pms">${pm}</div></div></div>`;
 
   // Makanan per waktu makan
   h += `<div class="sec-h"><h2>Makananmu</h2><span class="muted num">${ents.length} item</span></div>`;

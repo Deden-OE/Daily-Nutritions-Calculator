@@ -291,3 +291,8 @@ ul li { margin: 4px 0; }
   .tile { flex-direction: column; align-items: flex-start; }
 }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+.pms { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 6px; }
+.pm { display: flex; flex-direction: column; gap: 2px; }
+.pm b { font-size: 16px; }
+.pm .bar { margin-top: 4px; }
