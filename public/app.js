@@ -205,15 +205,18 @@ function searchList(list, q, limit = 80) {
   const toks = nq.split(' ');
   const out = [];
   for (const f of list) {
-    const h = f._h || (f._h = norm(f.n + ' ' + (f.c || '') + ' ' + (f.k || '')));
+    const h = f._h || (f._h = norm(f.n + ' ' + (f.c || '')));
+    const hk = f._hk || (f._hk = norm(f.k || ''));
     let ok = true, score = 0;
     for (const t of toks) {
       const i = h.indexOf(' ' + t);
-      if (i < 0) { if (h.indexOf(t) < 0) { ok = false; break; } score += 3; }
-      else score += i < 2 ? 0 : 1;
+      if (i >= 0) score += i < 2 ? 0 : 1;          // awal kata di nama
+      else if (h.indexOf(t) >= 0) score += 3;       // bagian kata di nama
+      else if (hk.indexOf(' ' + t) >= 0) score += 8; // hanya cocok di kelompok
+      else { ok = false; break; }
     }
     if (!ok) continue;
-    if (h.startsWith(' ' + nq)) score -= 5;
+    if (h.startsWith(' ' + nq)) score -= 1;
     if (/segar|mentah|raw/.test(h)) score -= 0.5;
     score += f.n.length / 100;
     out.push([score, f]);
@@ -256,8 +259,8 @@ function ring(pct, cls) {
   const col = cls === 'warn' ? 'var(--warn)' : cls === 'bad' ? 'var(--bad)' : 'var(--accent)';
   return `<svg class="ring" viewBox="0 0 112 112" role="img" aria-label="${Math.round(pct * 100)}% dari target energi">
     <circle cx="56" cy="56" r="${r}" fill="none" stroke="var(--track)" stroke-width="11"/>
-    <circle cx="56" cy="56" r="${r}" fill="none" stroke="${col}" stroke-width="11" stroke-linecap="round"
-      stroke-dasharray="${(c * p).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 56 56)"/>
+    ${p > 0.005 ? `<circle cx="56" cy="56" r="${r}" fill="none" stroke="${col}" stroke-width="11" stroke-linecap="round"
+      stroke-dasharray="${(c * p).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 56 56)"/>` : ''}
     <text x="56" y="61" text-anchor="middle" font-size="18" font-weight="700" fill="var(--text)">${Math.round(pct * 100)}%</text></svg>`;
 }
 
