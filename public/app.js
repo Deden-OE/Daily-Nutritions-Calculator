@@ -76,7 +76,7 @@ let USDA = null;         // USDA lengkap (dimuat saat diminta)
 
 const MEALS = [['sarapan', 'Sarapan'], ['siang', 'Makan siang'], ['malam', 'Makan malam'], ['camilan', 'Camilan']];
 const MEAL_LABEL = Object.fromEntries(MEALS);
-const SRC_LABEL = { TKPI: 'TKPI', USDA: 'USDA', Perkiraan: 'Perkiraan', 'Turunan TKPI': 'Turunan TKPI', Sendiri: 'Buatan saya', 'USDA lengkap': 'USDA' };
+const SRC_LABEL = { TKPI: 'TKPI', USDA: 'USDA', Perkiraan: 'Perkiraan', 'Turunan TKPI': 'Turunan TKPI', NutriNusa: 'NutriNusa', Sendiri: 'Buatan saya', 'USDA lengkap': 'USDA' };
 
 let custom = LS.get('custom', []);       // makanan buatan pengguna
 let extra = LS.get('extra', {});         // makanan USDA lengkap yang pernah dipakai
@@ -113,7 +113,7 @@ const UL = { vita: 3000, vitd: 100, vite: 300, vitc: 2000, vitb6: 100, kalsium: 
 
 function akgRow(p) {
   const rows = AKG.filter(r => p.usia >= r.min && p.usia <= r.max && (r.jk === 'semua' || r.jk === p.jk));
-  return rows[0] || AKG[AKG.length - 1] || {};
+  return rows[0] || AKG.filter(r => !r.tambah).slice(-1)[0] || {};
 }
 
 function calc(p) {
@@ -123,12 +123,15 @@ function calc(p) {
   const tj = TUJUAN[p.tujuan] || TUJUAN.jaga;
   const dewasa = p.usia >= 18;
   const t = {}; // key -> {v, type:'min'|'max'|'range', note}
-  for (const k of NK) if (row[k] != null) t[k] = { v: row[k], type: 'min', src: 'AKG' };
+  const add = p.jk === 'P' && p.kondisi ? AKG.find(r => r.tambah && r.jk === p.kondisi) : null;
+  const MAKRO = ['energi', 'protein', 'lemak', 'kh', 'serat'];
+  for (const k of NK) if (row[k] != null) t[k] = { v: row[k] + (add && !MAKRO.includes(k) ? add[k] || 0 : 0), type: 'min', src: 'AKG' };
   let energi, protein;
   if (dewasa) {
-    energi = Math.round((tdee + tj.adj) / 10) * 10;
+    const adj = add ? 0 : tj.adj, addE = add ? add.energi : 0, addP = add ? add.protein : 0;
+    energi = Math.round((tdee + adj + addE) / 10) * 10;
     energi = Math.max(energi, Math.round(bmr * 1.1 / 10) * 10);
-    protein = Math.round(Math.max(row.protein || 0, p.bb * tj.gkg));
+    protein = Math.round(Math.max((row.protein || 0) + addP, p.bb * (add ? 1.1 : tj.gkg) + addP));
     const lemak = Math.round(energi * 0.25 / 9);
     const kh = Math.round((energi - protein * 4 - lemak * 9) / 4);
     t.energi = { v: energi, type: 'range', src: 'Hitungan' };
@@ -137,7 +140,8 @@ function calc(p) {
     t.kh = { v: kh, type: 'range', src: 'Sisa energi' };
     t.serat = { v: Math.round(energi * 14 / 1000), type: 'min', src: '14 g/1000 kkal' };
   } else {
-    energi = row.energi; protein = row.protein;
+    if (add) for (const k of MAKRO) if (t[k]) t[k].v += add[k] || 0;
+    energi = t.energi ? t.energi.v : row.energi; protein = t.protein ? t.protein.v : row.protein;
     if (t.energi) t.energi.type = 'range';
     if (t.lemak) t.lemak.type = 'range';
     if (t.kh) t.kh.type = 'range';
@@ -149,7 +153,7 @@ function calc(p) {
   t.kolesterol = { v: 300, type: 'max', src: 'Batas umum' };
   const bmi = p.bb / Math.pow(p.tb / 100, 2);
   const whtr = p.lp ? p.lp / p.tb : null;
-  return { row, bmr, tdee, energi, protein, t, bmi, whtr, dewasa };
+  return { row, add, bmr, tdee, energi, protein, t, bmi, whtr, dewasa };
 }
 
 function bmiGauge(b) {
@@ -361,7 +365,7 @@ function streak() {
 const MEAL_EMOJI = { sarapan: ['🌅', 'var(--p4)'], siang: ['☀️', 'var(--p2)'], malam: ['🌙', 'var(--p5)'], camilan: ['🍪', 'var(--p6)'] };
 const KAT_EMOJI = { 'Serealia': '🍚', 'Umbi berpati': '🥔', 'Kacang dan biji': '🥜', 'Sayuran': '🥬', 'Buah': '🍎', 'Daging dan unggas': '🍗', 'Ikan, kerang, udang': '🐟',
   'Telur': '🥚', 'Susu': '🥛', 'Lemak dan minyak': '🫒', 'Gula, sirup, konfeksioneri': '🍬', 'Bumbu': '🧂', 'Minuman': '🥤', 'Restoran & cepat saji': '🍔',
-  'Makanan jadi': '🍱', 'Suplemen': '💊', 'Dessert & es krim': '🍨', 'USDA SR Legacy': '🌎' };
+  'Makanan jadi': '🍱', 'Jajanan pasar': '🍡', 'Makanan instan': '🍜', 'Kafe & bakery': '🥐', 'Menu sehat': '🥗', 'Suplemen': '💊', 'Dessert & es krim': '🍨', 'USDA SR Legacy': '🌎' };
 const foodEmoji = f => f.id === 'air-putih' ? '💧' : KAT_EMOJI[f.k] || '🍽️';
 
 const WATER_ID = 'air-putih';
@@ -627,7 +631,7 @@ async function renderResults() {
     if (catatSrc === 'fav') all = favs.map(id => FOODS.get(id)).filter(Boolean);
     else if (catatSrc === 'recent') all = recent.map(id => FOODS.get(id)).filter(Boolean);
     else if (catatSrc === 'USDA') all = all.filter(f => f.s === 'USDA');
-    else if (catatSrc === 'Perkiraan') all = all.filter(f => f.s === 'Perkiraan' || f.s === 'Turunan TKPI');
+    else if (catatSrc === 'Perkiraan') all = all.filter(f => f.s === 'Perkiraan' || f.s === 'Turunan TKPI' || f.s === 'NutriNusa');
     else if (catatSrc !== 'semua') all = all.filter(f => f.s === catatSrc);
     if (catatKel) all = all.filter(f => f.k === catatKel);
     list = all;
@@ -810,6 +814,7 @@ function renderProfil() {
       <label class="f">Berat (kg)<input type="number" inputmode="decimal" step="any" id="p-bb" value="${p.bb}"></label>
       <label class="f">Tinggi (cm)<input type="number" inputmode="decimal" step="any" id="p-tb" value="${p.tb}"></label></div>
     <label class="f">Lingkar pinggang (cm, diukur setinggi pusar)<input type="number" inputmode="decimal" step="any" id="p-lp" value="${p.lp ?? ''}"></label>
+    <label class="f" id="p-kon-w" ${p.jk === 'P' ? '' : 'hidden'}>Kondisi khusus<select id="p-kon"><option value="">Tidak hamil / tidak menyusui</option>${AKG.filter(r => r.tambah).map(r => `<option value="${r.jk}" ${p.kondisi === r.jk ? 'selected' : ''}>${esc(r.label)}</option>`).join('')}</select></label>
     <label class="f">Aktivitas harian<select id="p-akt">${AKT.map(([v, l]) => `<option value="${v}" ${+p.akt === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
     <label class="f">Tujuan<select id="p-tj">${Object.entries(TUJUAN).map(([k, t]) => `<option value="${k}" ${p.tujuan === k ? 'selected' : ''}>${t.label}</option>`).join('')}</select></label>
     <div class="row" style="margin-top:14px"><button class="btn primary grow" data-act="p-save">Simpan</button>${profiles.length > 1 ? '<button class="btn danger" data-act="p-del">Hapus profil</button>' : ''}</div>
@@ -826,9 +831,9 @@ function renderProfil() {
     <table class="nt"><tbody>
       ${C.dewasa ? `<tr><td>Energi basal (BMR, Mifflin-St Jeor)</td><td class="v">${fmt(C.bmr, 'kkal')} kkal</td></tr>
       <tr><td>Kebutuhan harian (TDEE × ${String(p.akt).replace('.', ',')})</td><td class="v">${fmt(C.tdee, 'kkal')} kkal</td></tr>
-      <tr><td>Penyesuaian tujuan</td><td class="v">${tj.adj > 0 ? '+' : ''}${fmt(tj.adj, 'kkal')} kkal</td></tr>` : ''}
+      ${C.add ? `<tr><td>Tambahan ${esc(C.add.label.toLowerCase())}</td><td class="v">+${fmt(C.add.energi, 'kkal')} kkal</td></tr>` : `<tr><td>Penyesuaian tujuan</td><td class="v">${tj.adj > 0 ? '+' : ''}${fmt(tj.adj, 'kkal')} kkal</td></tr>`}` : ''}
       <tr><td><b>Target energi</b></td><td class="v"><b>${fmt(C.t.energi.v, 'kkal')} kkal</b></td></tr>
-      <tr><td>Protein${C.dewasa ? ` (${String(tj.gkg).replace('.', ',')} g/kg)` : ''}</td><td class="v">${fmt(C.t.protein.v)} g</td></tr>
+      <tr><td>Protein${C.dewasa ? (C.add ? ` (termasuk +${fmt(C.add.protein)} g ${esc(C.add.label.toLowerCase())})` : ` (${String(tj.gkg).replace('.', ',')} g/kg)`) : ''}</td><td class="v">${fmt(C.t.protein.v)} g</td></tr>
       <tr><td>Lemak (25% energi)</td><td class="v">${fmt(C.t.lemak.v)} g</td></tr>
       <tr><td>Karbohidrat</td><td class="v">${fmt(C.t.kh.v)} g</td></tr>
       <tr><td>Serat</td><td class="v">${fmt(C.t.serat.v)} g</td></tr>
@@ -837,14 +842,17 @@ function renderProfil() {
       <tr><td>Lemak jenuh, maks.</td><td class="v">${fmt(C.t.lemak_jenuh.v)} g</td></tr>
       <tr><td>Air total (minum + makanan)</td><td class="v">${fmt(C.t.air ? C.t.air.v : null)} ml</td></tr>
     </tbody></table>
-    <p class="muted">Vitamin dan mineral mengikuti AKG (Permenkes No. 28 Tahun 2019) untuk ${p.jk === 'L' ? 'laki-laki' : 'perempuan'} ${C.row.min}–${C.row.max} tahun. ${C.dewasa ? 'Protein tidak pernah di bawah AKG.' : 'Untuk usia di bawah 18 tahun, energi dan makro memakai angka AKG langsung.'} Kehamilan dan menyusui belum dihitung; konsultasikan dengan tenaga kesehatan.</p></div>
-  ${p.tujuan === 'lean' ? `<div class="card"><h3 style="margin-top:0">💪 Panduan otot lean</h3><ul class="small" style="padding-left:18px;margin:6px 0">
+    <p class="muted">Vitamin dan mineral mengikuti AKG (Permenkes No. 28 Tahun 2019) untuk ${p.jk === 'L' ? 'laki-laki' : 'perempuan'} ${C.row.min}–${C.row.max} tahun. ${C.dewasa ? 'Protein tidak pernah di bawah AKG.' : 'Untuk usia di bawah 18 tahun, energi dan makro memakai angka AKG langsung.'} ${C.add ? `Ditambah kebutuhan ${esc(C.add.label.toLowerCase())} sesuai Permenkes 28/2019 (energi +${fmt(C.add.energi, 'kkal')} kkal, protein +${fmt(C.add.protein)} g); target turun berat tidak dipakai selama kondisi ini. Tetap konsultasikan dengan bidan, dokter, atau ahli gizi.` : 'Untuk ibu hamil atau menyusui, pilih kondisinya di Data diri.'}</p></div>
+  ${p.tujuan === 'lean' && !C.add ? `<div class="card"><h3 style="margin-top:0">💪 Panduan otot lean</h3><ul class="small" style="padding-left:18px;margin:6px 0">
     <li>Surplus kecil sekitar 250 kkal. Targetkan berat naik ±0,25–0,5 kg per bulan. Bila naik lebih cepat dan lingkar pinggang ikut bertambah, kurangi 100–200 kkal.</li>
     <li>Bagi protein ke 3–5 kali makan, masing-masing sekitar ${fmt(Math.round(p.bb * 0.4))} g (0,4 g/kg), termasuk 1 porsi dalam 2 jam setelah latihan.</li>
     <li>Latihan beban atau kalistenik progresif 3–5 kali per minggu: tambah repetisi, beban, atau tingkat kesulitan gerakan secara bertahap.</li>
     <li>Tidur 7–9 jam. Timbang dan ukur pinggang tiap 2 minggu pada pagi hari, lalu perbarui di sini.</li></ul></div>` : ''}`;
   el.innerHTML = h;
 }
+$('#view-profil').addEventListener('change', ev => {
+  if (ev.target.id === 'p-jk') { const w = $('#p-kon-w'); if (w) w.hidden = ev.target.value !== 'P'; }
+});
 $('#view-profil').addEventListener('click', ev => {
   const c = ev.target.closest('[data-pid]'); if (c) { setActive(c.dataset.pid); return; }
   const b = ev.target.closest('[data-act]'); if (!b) return;
@@ -853,7 +861,7 @@ $('#view-profil').addEventListener('click', ev => {
     profiles.push(np); setActive(np.id); toast('Profil baru dibuat. Lengkapi datanya lalu simpan.');
   } else if (b.dataset.act === 'p-save') {
     const p = prof();
-    const v = { nama: $('#p-nama').value.trim() || p.nama, jk: $('#p-jk').value, usia: numIn($('#p-usia').value), bb: numIn($('#p-bb').value), tb: numIn($('#p-tb').value), lp: numIn($('#p-lp').value), akt: +$('#p-akt').value, tujuan: $('#p-tj').value };
+    const v = { nama: $('#p-nama').value.trim() || p.nama, jk: $('#p-jk').value, usia: numIn($('#p-usia').value), bb: numIn($('#p-bb').value), tb: numIn($('#p-tb').value), lp: numIn($('#p-lp').value), akt: +$('#p-akt').value, tujuan: $('#p-tj').value, kondisi: $('#p-jk').value === 'P' ? $('#p-kon').value : '' };
     if (!(v.usia >= 1 && v.usia <= 120) || !(v.bb > 5 && v.bb < 400) || !(v.tb > 40 && v.tb < 260)) { toast('Periksa usia, berat, dan tinggi'); return; }
     if (v.bb !== p.bb || v.lp !== p.lp || !(p.ukur || []).length) {
       p.ukur = (p.ukur || []).filter(u => u.d !== today()); p.ukur.push({ d: today(), bb: v.bb, lp: v.lp });
@@ -883,7 +891,7 @@ function renderData() {
   const nDays = Object.keys(LOG).length;
   el.innerHTML = `<div class="card"><h3 style="margin-top:0">🗂️ Database makanan</h3>
     <p><b class="num">${BASE.length.toLocaleString('id-ID')}</b> bahan bawaan + <b class="num">${custom.length}</b> buatan Anda + 8.789 USDA lengkap.</p>
-    <p class="muted">TKPI ${cnt.TKPI || 0} · USDA pilihan ${cnt.USDA || 0} · Menu jadi (perkiraan) ${(cnt.Perkiraan || 0) + (cnt['Turunan TKPI'] || 0)} · Versi ${esc(fmtVer(DBV))}</p>
+    <p class="muted">TKPI ${cnt.TKPI || 0} · USDA pilihan ${cnt.USDA || 0} · NutriNusa ${cnt.NutriNusa || 0} · Menu jadi (perkiraan) ${(cnt.Perkiraan || 0) + (cnt['Turunan TKPI'] || 0)} · Versi ${esc(fmtVer(DBV))}</p>
     <div class="row wrap"><button class="btn small" data-act="check">Cek pembaruan</button><button class="btn small" data-act="db-csv">Unduh database (CSV)</button></div></div>
 
   <div class="card"><h3 style="margin-top:0">Makanan buatan saya (${custom.length})</h3>
@@ -901,7 +909,8 @@ function renderData() {
   <div class="card"><h3 style="margin-top:0">📚 Sumber data</h3><ul class="small" style="padding-left:18px;margin:4px 0">
     <li>Tabel Komposisi Pangan Indonesia (TKPI) 2017, Kementerian Kesehatan RI: ${cnt.TKPI || 0} bahan, per 100 g bagian yang dapat dimakan. Zat gizi yang tidak dimuat TKPI (mis. lemak jenuh, kolesterol, gula, vitamin B6, B12, D, E, K) dilengkapi dari USDA bila ada padanan yang sesuai, dan ditandai.</li>
     <li>USDA National Nutrient Database for Standard Reference, Legacy Release (domain publik).</li>
-    <li>Angka Kecukupan Gizi: Permenkes RI No. 28 Tahun 2019.</li>
+    <li>NutriNusa (nutrinusa.id): ${cnt.NutriNusa || 0} menu siap saji, jajanan, dan makanan instan, per porsi standar (energi, protein, karbohidrat, lemak). Berat porsinya diperkirakan.</li>
+    <li>Angka Kecukupan Gizi: Permenkes RI No. 28 Tahun 2019, termasuk tambahan untuk ibu hamil dan menyusui.</li>
     <li>Menu jadi bertanda <span class="badge est">Perkiraan</span> belum diverifikasi; nilainya bisa berbeda jauh tergantung resep dan porsi.</li></ul>
     <p class="muted">Aplikasi ini alat bantu edukasi, bukan pengganti saran dokter atau ahli gizi.</p></div>`;
 }

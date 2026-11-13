@@ -2,7 +2,7 @@
 
 Aplikasi web (PWA) untuk mencatat makanan dan minuman harian, menghitung **34 zat gizi**, dan membandingkannya dengan target harian berdasarkan **AKG (Permenkes No. 28 Tahun 2019)**, usia, jenis kelamin, berat, tinggi, aktivitas, dan tujuan.
 
-- **1.334 bahan** di daftar utama: seluruh **1.146 item TKPI 2017**, 123 bahan USDA dengan nama Indonesia, dan 65 menu jadi/suplemen.
+- **1.493 bahan** di daftar utama: seluruh **1.146 item TKPI 2017**, 123 bahan USDA dengan nama Indonesia, 163 menu dari NutriNusa (restoran cepat saji, jajanan pasar, makanan instan, kafe, menu sehat), dan 61 menu jadi/suplemen lain.
 - **8.789 bahan USDA SR Legacy** lengkap (nama bahasa Inggris), dimuat hanya saat dicari.
 - Banyak profil (untuk keluarga atau klien), riwayat harian, grafik 7/30/90 hari, ekspor CSV, cadangan JSON.
 - Bisa dipasang di HP (Tambahkan ke Layar Utama) dan tetap jalan tanpa internet.
@@ -14,7 +14,8 @@ Aplikasi web (PWA) untuk mencatat makanan dan minuman harian, menghitung **34 za
 |---|---|
 | `data/tambahan.csv` | **Tempat utama menambah makanan secara manual** (label kemasan, menu restoran, resep, suplemen). |
 | `data/porsi_tkpi.csv` | Ukuran 1 porsi untuk item TKPI (mis. nasi 1 piring = 150 g). |
-| `data/akg.csv` | Tabel AKG 2019 per kelompok umur dan jenis kelamin. |
+| `data/akg.csv` | Tabel AKG 2019 per kelompok umur dan jenis kelamin (sudah dicocokkan dengan naskah Permenkes 28/2019). |
+| `data/akg_tambahan.csv` | Tambahan AKG untuk ibu hamil (trimester 1–3) dan menyusui (6 bulan pertama/kedua). |
 | `data/sumber/tkpi.csv` | Seluruh TKPI 2017 hasil penyalinan dari PDF, per 100 g bagian dapat dimakan (BDD). |
 | `data/sumber/usda_sr28.csv` | USDA SR Legacy Release 28 (domain publik). |
 | `data/sumber/usda_pilihan.csv` | Bahan USDA yang ditampilkan di daftar utama dengan nama Indonesia. |
@@ -48,7 +49,7 @@ Untuk memeriksa di komputer sendiri: `python3 tools/build.py` lalu `python3 -m h
 - **Vitamin dan mineral**: AKG 2019 sesuai umur dan jenis kelamin. Di bawah 18 tahun, energi dan makro memakai AKG langsung.
 - **Komposisi tubuh**: IMT batas Asia-Pasifik, lingkar pinggang (risiko ≥90 cm laki-laki, ≥80 cm perempuan), rasio pinggang/tinggi <0,5.
 
-Kehamilan dan menyusui belum dihitung. Angka AKG di `data/akg.csv` sebaiknya dicocokkan ulang dengan naskah Permenkes 28/2019 sebelum dipakai untuk konseling.
+Untuk ibu hamil dan menyusui, kebutuhan tambahan dari Permenkes 28/2019 ditambahkan ke target (pilih kondisinya di Profil); penyesuaian turun berat tidak dipakai selama kondisi ini.
 
 ## Catatan kualitas data
 
@@ -56,11 +57,13 @@ Kehamilan dan menyusui belum dihitung. Angka AKG di `data/akg.csv` sebaiknya dic
 - Kolom bertanda sumber USDA pada item TKPI berasal dari bahan padanan USDA, bukan analisis TKPI.
 - Total di aplikasi diberi tanda **≥** bila ada makanan yang belum punya data zat gizi itu.
 - Menu jadi bertanda **Perkiraan** belum diverifikasi dan bisa berbeda jauh tergantung resep.
+- Menu dari **NutriNusa** dicatat per porsi standar (energi, protein, karbohidrat, lemak). Berat porsinya diperkirakan, jadi pakai tombol porsi saat mencatat. Zat gizi lain belum tersedia.
 
 ## Sumber
 
 - Tabel Komposisi Pangan Indonesia 2017, Kementerian Kesehatan RI.
 - U.S. Department of Agriculture, Agricultural Research Service. USDA National Nutrient Database for Standard Reference, Legacy Release (domain publik).
 - Peraturan Menteri Kesehatan RI No. 28 Tahun 2019 tentang Angka Kecukupan Gizi.
+- NutriNusa (nutrinusa.id), kategori Fast Food, Jajanan Pasar, Makanan Instan, Menu Kafe, Menu Sehat, Karbohidrat, Protein, Sayuran, Buah-buahan (dibaca 13-11-2026).
 
 Aplikasi ini alat bantu edukasi, bukan pengganti saran dokter atau ahli gizi.

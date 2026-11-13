@@ -11,6 +11,7 @@ Masukan (boleh disunting di Excel / Google Sheets, simpan tetap sebagai CSV UTF-
   data/porsi_tkpi.csv           Ukuran 1 porsi untuk item TKPI
   data/tambahan.csv             Item tambahan manual (label kemasan, menu restoran, suplemen, resep)
   data/akg.csv                  Angka Kecukupan Gizi (Permenkes 28/2019)
+  data/akg_tambahan.csv         Tambahan AKG untuk ibu hamil (trimester 1-3) dan menyusui
 
 Keluaran:
   public/data/foods.json        Database utama yang dibaca aplikasi
@@ -206,6 +207,15 @@ def main():
             if k not in ('jk', 'usia_min', 'usia_max'):
                 row[k] = num(val, 'akg ' + k)
         akg.append(row)
+    # Tambahan kebutuhan untuk ibu hamil dan menyusui (Permenkes 28/2019, baris "+an")
+    pth = os.path.join(D, 'akg_tambahan.csv')
+    if os.path.exists(pth):
+        for r in read(pth):
+            row = {'jk': r['kondisi'].strip(), 'label': r['label'].strip(), 'min': 0, 'max': 0, 'tambah': True}
+            for k, val in r.items():
+                if k not in ('kondisi', 'label'):
+                    row[k] = num(val, 'akg_tambahan ' + k)
+            akg.append(row)
 
     if errors:
         print('GAGAL, perbaiki dulu:')
