@@ -152,6 +152,13 @@ function calc(p) {
   return { row, bmr, tdee, energi, protein, t, bmi, whtr, dewasa };
 }
 
+function bmiGauge(b) {
+  const lo = 15, hi = 33, pos = v => (clamp(v, lo, hi) - lo) / (hi - lo) * 100;
+  const segs = [[lo, 18.5, 'var(--warn)', 'Kurus'], [18.5, 23, 'var(--good)', 'Normal'], [23, 25, 'var(--warn)', 'Berlebih'], [25, 30, 'var(--bad)', 'Obes. I'], [30, hi, 'var(--bad)', 'Obes. II']];
+  return `<div class="gauge" role="img" aria-label="IMT ${fmt(b)}, ${bmiCat(b)[0]}"><span class="mk num" style="left:${pos(b).toFixed(1)}%">IMT ${fmt(b)}</span>
+    <div class="seg">${segs.map(([a, z, c]) => `<i style="width:${(pos(z) - pos(a)).toFixed(2)}%;background:${c};opacity:.85"></i>`).join('')}</div>
+    <div class="lb">${segs.map(([a, z, , l]) => `<span style="width:${(pos(z) - pos(a)).toFixed(2)}%">${l}</span>`).join('')}</div></div>`;
+}
 function bmiCat(b) {
   if (b < 18.5) return ['Kurus', 'warn'];
   if (b < 23) return ['Normal', 'good'];
@@ -245,7 +252,11 @@ function switchTab(t) {
 }
 
 function render() {
-  $('#profile-chip').textContent = '☺ ' + prof().nama;
+  const p = prof();
+  $('#profile-chip').innerHTML = `<span class="av">${esc((p.nama || '?').trim().charAt(0).toUpperCase())}</span><span class="nm">${esc(p.nama)}</span>`;
+  const h = new Date().getHours();
+  $('#hello').textContent = `${h < 11 ? 'Selamat pagi' : h < 15 ? 'Selamat siang' : h < 18 ? 'Selamat sore' : 'Selamat malam'}, ${p.nama} 👋`;
+  $('#subhello').textContent = fmtDate(today());
   if (tab === 'hari') renderHari();
   else if (tab === 'catat') renderCatat();
   else if (tab === 'riwayat') renderRiwayat();
@@ -254,14 +265,20 @@ function render() {
 }
 
 /* ---------- Komponen ---------- */
-function ring(pct, cls) {
-  const r = 48, c = 2 * Math.PI * r, p = clamp(pct, 0, 1);
-  const col = cls === 'warn' ? 'var(--warn)' : cls === 'bad' ? 'var(--bad)' : 'var(--accent)';
-  return `<svg class="ring" viewBox="0 0 112 112" role="img" aria-label="${Math.round(pct * 100)}% dari target energi">
-    <circle cx="56" cy="56" r="${r}" fill="none" stroke="var(--track)" stroke-width="11"/>
-    ${p > 0.005 ? `<circle cx="56" cy="56" r="${r}" fill="none" stroke="${col}" stroke-width="11" stroke-linecap="round"
-      stroke-dasharray="${(c * p).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 56 56)"/>` : ''}
-    <text x="56" y="61" text-anchor="middle" font-size="18" font-weight="700" fill="var(--text)">${Math.round(pct * 100)}%</text></svg>`;
+function ring(pct, over) {
+  const r = 50, c = 2 * Math.PI * r, p = clamp(pct, 0, 1);
+  return `<svg class="ring" viewBox="0 0 124 124" role="img" aria-label="${Math.round(pct * 100)}% dari target energi">
+    <circle cx="62" cy="62" r="${r}" fill="none" stroke="rgba(255,255,255,.16)" stroke-width="13"/>
+    ${p > 0.005 ? `<circle cx="62" cy="62" r="${r}" fill="none" stroke="${over ? '#ffb38a' : 'var(--pop)'}" stroke-width="13" stroke-linecap="round"
+      stroke-dasharray="${(c * p).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 62 62)"/>` : ''}
+    <text x="62" y="60" text-anchor="middle" font-size="24" font-weight="800" fill="#fff">${Math.round(pct * 100)}%</text>
+    <text x="62" y="80" text-anchor="middle" font-size="11" font-weight="600" fill="rgba(255,255,255,.7)">dari target</text></svg>`;
+}
+function miniRing(pct, color, label) {
+  const r = 21, c = 2 * Math.PI * r, p = clamp(pct, 0, 1);
+  return `<svg class="mr" viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="${r}" fill="none" stroke="var(--track)" stroke-width="7"/>
+    ${p > 0.005 ? `<circle cx="26" cy="26" r="${r}" fill="none" stroke="${color}" stroke-width="7" stroke-linecap="round" stroke-dasharray="${(c * p).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 26 26)"/>` : ''}
+    <text x="26" y="30" text-anchor="middle" font-size="12" font-weight="800" fill="var(--text)">${label}</text></svg>`;
 }
 
 function status(k, val, tg) {
@@ -285,8 +302,9 @@ function status(k, val, tg) {
 function macroBar(k, tot, C) {
   const n = NMAP[k], tg = C.t[k], v = tot.sum[k], st = status(k, v, tg);
   const ge = tot.miss[k] ? '≥ ' : '';
-  return `<div class="macro"><div class="h"><span>${esc(n.label)}${tg && tg.type === 'max' ? ' <span class="muted small">(batas)</span>' : ''}</span>
-    <span class="num">${ge}${fmt(v)} / ${fmt(tg ? tg.v : null)} ${esc(n.unit)}</span></div>
+  const icon = st.cls === 'bad' ? '✕' : st.cls === 'warn' ? '!' : '✓';
+  return `<div class="macro"><div class="h"><span>${esc(n.label)} ${tot.n ? `<span class="tag ${st.cls}">${icon} ${st.label}</span>` : ''}</span>
+    <span class="num">${ge}${fmt(v)} <span class="muted">/ ${fmt(tg ? tg.v : null)} ${esc(n.unit)}</span></span></div>
     <div class="bar"><i class="${st.cls}" style="width:${clamp((st.pct || 0) * 100, 0, 100).toFixed(1)}%"></i></div>
     ${tot.miss[k] ? `<div class="gap">${tot.miss[k]} item belum punya data ${esc(n.label.toLowerCase())}</div>` : ''}</div>`;
 }
@@ -296,19 +314,60 @@ function nutrientTable(tot, C, scaleNote) {
   let h = `<table class="nt"><thead><tr><th>Zat gizi</th><th class="right">Jumlah</th><th>% target</th></tr></thead><tbody>`;
   for (const g of groups) {
     h += `<tr><th colspan="3" style="padding-top:14px">${g}</th></tr>`;
-    for (const n of NUTR.filter(x => x.group === g)) {
-      const tg = C ? C.t[n.key] : null, v = tot.sum[n.key], miss = tot.miss[n.key];
-      const st = status(n.key, v, tg);
-      const allMiss = tot.n && miss === tot.n;
-      h += `<tr><td>${esc(n.label)}${tg && tg.type === 'max' ? ' <span class="badge">batas</span>' : ''}
-          ${miss && !allMiss ? `<div class="gap">${miss} item tanpa data</div>` : ''}${st.label ? `<div class="status ${st.cls}">${st.label}</div>` : ''}</td>
-        <td class="v">${allMiss ? '–' : (miss ? '≥ ' : '') + fmt(v)} <span class="muted small">${esc(n.unit)}</span>${tg ? `<div class="muted small">dari ${fmt(tg.v)}</div>` : ''}</td>
-        <td class="pc">${tg ? `<div class="pcbar"><div class="bar"><i class="${st.cls}" style="width:${clamp((st.pct || 0) * 100, 0, 100).toFixed(1)}%"></i></div><span>${Math.round((st.pct || 0) * 100)}%</span></div>` : '<span class="muted small">–</span>'}</td></tr>`;
-    }
+    for (const n of NUTR.filter(x => x.group === g)) h += nutRow(n, tot, C);
   }
   h += '</tbody></table>';
   if (scaleNote) h += `<p class="muted">${scaleNote}</p>`;
   return h;
+}
+function nutRow(n, tot, C) {
+  const tg = C ? C.t[n.key] : null, v = tot.sum[n.key], miss = tot.miss[n.key];
+  const st = status(n.key, v, tg);
+  const allMiss = tot.n && miss === tot.n;
+  return `<tr><td>${esc(n.label)}${tg && tg.type === 'max' ? ' <span class="badge">batas</span>' : ''}
+      ${miss && !allMiss ? `<div class="gap">${miss} item tanpa data</div>` : ''}${st.label ? `<div class="status ${st.cls}">${st.label}</div>` : ''}</td>
+    <td class="v">${allMiss ? '–' : (miss ? '≥ ' : '') + fmt(v)} <span class="muted small">${esc(n.unit)}</span>${tg ? `<div class="muted small">dari ${fmt(tg.v)}</div>` : ''}</td>
+    <td class="pc">${tg ? `<div class="pcbar"><div class="bar"><i class="${st.cls}" style="width:${clamp((st.pct || 0) * 100, 0, 100).toFixed(1)}%"></i></div><span>${Math.round((st.pct || 0) * 100)}%</span></div>` : '<span class="muted small">–</span>'}</td></tr>`;
+}
+
+/* Kategori kesehatan: skor 0–100 dari zat gizi terkait */
+const KATEGORI = [
+  { id: 'otot', e: '💪', n: 'Otot & pemulihan', bg: 'var(--p1)', k: ['protein', 'magnesium', 'kalium', 'seng', 'vitb6'], d: 'Protein membangun otot; magnesium, kalium, seng, dan B6 membantu kontraksi dan pemulihan.' },
+  { id: 'tulang', e: '🦴', n: 'Tulang & sendi', bg: 'var(--p4)', k: ['kalsium', 'vitd', 'vitk', 'fosfor', 'magnesium'], d: 'Kalsium dan fosfor membentuk tulang; vitamin D dan K membantu penyerapan dan pengikatannya.' },
+  { id: 'darah', e: '🩸', n: 'Darah & energi', bg: 'var(--p6)', k: ['besi', 'vitb12', 'folat', 'riboflavin', 'niasin'], d: 'Zat besi, B12, dan folat untuk sel darah merah; B2 dan B3 untuk mengubah makanan jadi energi.' },
+  { id: 'imun', e: '🛡️', n: 'Daya tahan', bg: 'var(--p3)', k: ['vitc', 'vita', 'seng', 'selenium', 'vite', 'vitd'], d: 'Vitamin C, A, E, D, seng, dan selenium mendukung sistem imun.' },
+  { id: 'jantung', e: '❤️', n: 'Jantung', bg: 'var(--p2)', k: ['serat', 'kalium', 'natrium', 'lemak_jenuh', 'kolesterol'], d: 'Serat dan kalium cukup, sementara natrium, lemak jenuh, dan kolesterol tidak lewat batas.' },
+  { id: 'otak', e: '🧠', n: 'Otak & saraf', bg: 'var(--p5)', k: ['kolin', 'vitb12', 'vitb6', 'thiamin', 'folat'], d: 'Kolin dan vitamin B mendukung fungsi saraf dan konsentrasi.' },
+];
+function catScore(cat, tot, C) {
+  let s = 0, n = 0;
+  for (const k of cat.k) {
+    const tg = C.t[k]; if (!tg || !tot.n || tot.miss[k] === tot.n) continue;
+    const v = tot.sum[k];
+    s += tg.type === 'max' ? (v <= tg.v ? 1 : Math.max(0, 1 - (v - tg.v) / tg.v)) : Math.min(1, v / tg.v);
+    n++;
+  }
+  return n ? Math.round(s / n * 100) : 0;
+}
+const scoreTag = s => s >= 80 ? ['good', 'Mantap'] : s >= 50 ? ['warn', 'Lumayan'] : ['bad', 'Kurang'];
+
+function streak() {
+  let d = today(), n = 0;
+  if (!dayEntries(d).length) d = addDays(d, -1);
+  while (dayEntries(d).length) { n++; d = addDays(d, -1); }
+  return n;
+}
+
+const MEAL_EMOJI = { sarapan: ['🌅', 'var(--p4)'], siang: ['☀️', 'var(--p2)'], malam: ['🌙', 'var(--p5)'], camilan: ['🍪', 'var(--p6)'] };
+const KAT_EMOJI = { 'Serealia': '🍚', 'Umbi berpati': '🥔', 'Kacang dan biji': '🥜', 'Sayuran': '🥬', 'Buah': '🍎', 'Daging dan unggas': '🍗', 'Ikan, kerang, udang': '🐟',
+  'Telur': '🥚', 'Susu': '🥛', 'Lemak dan minyak': '🫒', 'Gula, sirup, konfeksioneri': '🍬', 'Bumbu': '🧂', 'Minuman': '🥤', 'Restoran & cepat saji': '🍔',
+  'Makanan jadi': '🍱', 'Suplemen': '💊', 'Dessert & es krim': '🍨', 'USDA SR Legacy': '🌎' };
+const foodEmoji = f => f.id === 'air-putih' ? '💧' : KAT_EMOJI[f.k] || '🍽️';
+
+const WATER_ID = 'air-putih';
+function waterCount(ents) { return ents.filter(e => e.f === WATER_ID).reduce((a, e) => a + e.g, 0) / 250; }
+function drop(filled) {
+  return `<svg viewBox="0 0 22 28" aria-hidden="true"><path d="M11 2C11 2 3 11.5 3 17.5a8 8 0 0 0 16 0C19 11.5 11 2 11 2z" fill="${filled ? 'var(--c1)' : 'none'}" stroke="${filled ? 'var(--c1)' : 'var(--line)'}" stroke-width="2"/></svg>`;
 }
 
 /* ---------- Hari ini ---------- */
@@ -317,35 +376,79 @@ function renderHari() {
   const ents = dayEntries(curDate), tot = totals(ents);
   const eT = C.t.energi.v, eV = tot.sum.energi, sisa = eT - eV;
   const est = ents.filter(e => { const f = foodOf(e); return f && f.s === 'Perkiraan'; }).length;
-  let h = `<div class="datebar"><button class="btn small" data-act="prev" aria-label="Hari sebelumnya">‹</button>
-    <label class="grow" style="text-align:center;cursor:pointer"><b>${curDate === today() ? 'Hari ini · ' : ''}${fmtDate(curDate)}</b>
-    <input type="date" id="date-pick" value="${curDate}" style="position:absolute;opacity:0;width:1px;height:1px"></label>
-    <button class="btn small" data-act="next" aria-label="Hari berikutnya" ${curDate >= today() ? 'disabled' : ''}>›</button></div>`;
-  h += `<div class="card"><div class="hero">${ring(eT ? eV / eT : 0, eV > eT * 1.1 ? 'warn' : '')}<div class="grow">
-    <div class="muted">Energi</div><div class="big num">${tot.miss.energi ? '≥ ' : ''}${fmt(eV, 'kkal')} <span class="muted" style="font-size:14px;font-weight:400">/ ${fmt(eT, 'kkal')} kkal</span></div>
-    <div class="small" style="margin-top:4px">${sisa >= 0 ? `Sisa <b class="num">${fmt(sisa, 'kkal')}</b> kkal` : `Lebih <b class="num">${fmt(-sisa, 'kkal')}</b> kkal`}</div>
-    <div class="muted small">Target ${esc((TUJUAN[p.tujuan] || TUJUAN.jaga).label.toLowerCase())}</div></div></div>
-    ${macroBar('protein', tot, C)}${macroBar('kh', tot, C)}${macroBar('lemak', tot, C)}${macroBar('serat', tot, C)}</div>`;
-  h += `<div class="card"><h3 style="margin-top:0">Batasi</h3>${macroBar('gula', tot, C)}${macroBar('natrium', tot, C)}${macroBar('lemak_jenuh', tot, C)}${macroBar('kolesterol', tot, C)}</div>`;
+  const st = streak();
+  let h = `<div class="datebar"><button class="btn" data-act="prev" aria-label="Hari sebelumnya">‹</button>
+    <label class="dl">${curDate === today() ? '📅 Hari ini' : '📅 ' + fmtDate(curDate)}
+    <input type="date" id="date-pick" value="${curDate}" style="position:absolute;opacity:0;width:1px;height:1px;left:0"></label>
+    <button class="btn" data-act="next" aria-label="Hari berikutnya" ${curDate >= today() ? 'disabled' : ''}>›</button></div>`;
 
-  h += `<div class="card">`;
+  // Hero energi
+  h += `<section class="hero"><div class="hrow">${ring(eT ? eV / eT : 0, eV > eT * 1.1)}<div class="grow">
+    <div class="lbl">Energi masuk</div>
+    <div class="big num">${tot.miss.energi ? '≥' : ''}${fmt(eV, 'kkal')}</div><div class="of">dari ${fmt(eT, 'kkal')} kkal</div>
+    <div class="pills"><span class="pill pop">${sisa >= 0 ? `⚡ Sisa ${fmt(sisa, 'kkal')} kkal` : `⚠️ Lebih ${fmt(-sisa, 'kkal')} kkal`}</span>
+    ${st ? `<span class="pill">🔥 ${st} hari beruntun</span>` : ''}</div></div></div>
+    <div class="goal">🎯 ${esc((TUJUAN[p.tujuan] || TUJUAN.jaga).label)}</div></section>`;
+
+  // Asupan utama
+  const MAC = [['protein', '🥩', 'var(--c1)'], ['kh', '🍚', 'var(--c2)'], ['lemak', '🥑', 'var(--c3)'], ['serat', '🥦', 'var(--c4)']];
+  const LBL = { protein: 'Protein', kh: 'Karbo', lemak: 'Lemak', serat: 'Serat' };
+  h += `<div class="sec-h"><h2>Asupan utama</h2><span class="muted">gram</span></div><div class="tiles">${MAC.map(([k, em, col]) => {
+    const tg = C.t[k].v, v = tot.sum[k];
+    return `<div class="tile">${miniRing(tg ? v / tg : 0, col, em)}<div style="min-width:0"><div class="t1"><span class="sw" style="background:${col}"></span>${LBL[k]}</div>
+      <div class="t2 num">${tot.miss[k] ? '<span class="ge">≥</span>' : ''}${fmt(v)}<span class="muted" style="font-size:12px;font-weight:600"> / ${fmt(tg)}</span></div>
+      <div class="t3">${tg ? Math.round(v / tg * 100) : 0}% target</div></div></div>`;
+  }).join('')}</div>`;
+
+  // Komposisi energi
+  const kP = tot.sum.protein * 4, kK = tot.sum.kh * 4, kL = tot.sum.lemak * 9, kS = kP + kK + kL;
+  const tP = C.t.protein.v * 4 / eT, tL = C.t.lemak.v * 9 / eT, tK = 1 - tP - tL;
+  const pc = x => kS ? Math.round(x / kS * 100) : 0;
+  h += `<div class="card"><h3>Sumber energimu</h3><div class="muted">Persentase kalori dari protein, karbohidrat, dan lemak</div>
+    <div class="stack" role="img" aria-label="Protein ${pc(kP)}%, karbohidrat ${pc(kK)}%, lemak ${pc(kL)}%">${kS ? `<i style="width:${pc(kP)}%;background:var(--c1)"></i><i style="width:${pc(kK)}%;background:var(--c2)"></i><i style="width:${pc(kL)}%;background:var(--c3)"></i>` : ''}</div>
+    <div class="legend"><div><span class="sw" style="background:var(--c1)"></span>Protein<b class="num">${pc(kP)}%</b>ideal ${Math.round(tP * 100)}%</div>
+      <div><span class="sw" style="background:var(--c2)"></span>Karbo<b class="num">${pc(kK)}%</b>ideal ${Math.round(tK * 100)}%</div>
+      <div><span class="sw" style="background:var(--c3)"></span>Lemak<b class="num">${pc(kL)}%</b>ideal ${Math.round(tL * 100)}%</div></div></div>`;
+
+  // Air minum
+  const wc = waterCount(ents), wt = Math.max(6, Math.round((C.t.air ? C.t.air.v : 2000) * 0.8 / 250));
+  h += `<div class="card"><div class="row" style="justify-content:space-between"><h3 style="margin:0">💧 Air minum</h3><span class="num" style="font-weight:800">${fmt(wc)} <span class="muted">/ ${wt} gelas</span></span></div>
+    <div class="water" style="margin-top:10px"><div class="drops" role="img" aria-label="${fmt(wc)} dari ${wt} gelas">${Array.from({ length: Math.max(wt, Math.ceil(wc)) }, (_, i) => drop(i < Math.floor(wc + 0.001))).join('')}</div>
+    <button class="btn round" data-act="water-" aria-label="Kurangi 1 gelas" ${wc ? '' : 'disabled'}>−</button><button class="btn round primary" data-act="water+" aria-label="Tambah 1 gelas">+</button></div>
+    <div class="muted small" style="margin-top:6px">1 gelas = 250 ml. ${wc >= wt ? 'Target tercapai, mantap! 🎉' : `Kurang ${fmt(wt - wc)} gelas lagi.`}</div></div>`;
+
+  // Skor kategori
+  h += `<div class="sec-h"><h2>Skor kesehatan</h2><span class="muted">ketuk untuk detail</span></div><div class="cats">${KATEGORI.map(c => {
+    const s = catScore(c, tot, C), [cls, lb] = scoreTag(s);
+    return `<button class="cat" data-cat="${c.id}" style="background:${c.bg}"><span class="em">${c.e}</span><span class="cn">${c.n}</span>
+      <span class="sc num">${s}<small>/100</small></span><div class="bar"><i style="width:${s}%"></i></div>${tot.n ? `<span class="tag ${cls}" style="align-self:flex-start">${lb}</span>` : ''}</button>`;
+  }).join('')}</div>
+  <p class="muted small">Skor naik seiring makanan dicatat sepanjang hari. 100 = semua zat gizi di kategori itu memenuhi target.</p>`;
+
+  // Batasi
+  h += `<div class="card"><h3>🚦 Batasi</h3>${macroBar('gula', tot, C)}${macroBar('natrium', tot, C)}${macroBar('lemak_jenuh', tot, C)}${macroBar('kolesterol', tot, C)}</div>`;
+
+  // Makanan per waktu makan
+  h += `<div class="sec-h"><h2>Makananmu</h2><span class="muted num">${ents.length} item</span></div>`;
   for (const [m, label] of MEALS) {
-    const me = ents.filter(e => e.m === m);
+    const me = ents.filter(e => e.m === m && e.f !== WATER_ID);
     const kcal = me.reduce((a, e) => a + (entryVal(e, 'energi') || 0), 0);
-    h += `<div class="meal-h"><b>${label}</b><span class="muted num">${me.length ? fmt(kcal, 'kkal') + ' kkal' : ''}
-      <button class="btn link" data-act="add" data-meal="${m}">+ Tambah</button></span></div>`;
+    const [em, bg] = MEAL_EMOJI[m];
+    h += `<div class="meal"><div class="meal-h"><span class="me" style="background:${bg}">${em}</span><div class="grow"><b>${label}</b>
+      <span class="muted num">${me.length ? fmt(kcal, 'kkal') + ' kkal · ' + me.length + ' item' : 'Belum ada'}</span></div>
+      <button class="add" data-act="add" data-meal="${m}" aria-label="Tambah ke ${label}">+</button></div>`;
     for (const e of me) {
       const f = foodOf(e), kc = entryVal(e, 'energi'), pr = entryVal(e, 'protein');
-      h += `<div class="item"><button class="pick" data-act="edit" data-id="${e.id}"><div class="t">${esc(f ? f.n : e.n)}</div>
-        <div class="muted">${fmt(e.g)} g · ${fmt(kc, 'kkal')} kkal · protein ${fmt(pr)} g${f ? '' : ' · <span class="gap">data makanan tidak ditemukan</span>'}</div></button></div>`;
+      h += `<div class="item"><button class="pick fx" data-act="edit" data-id="${e.id}"><span class="fe">${f ? foodEmoji(f) : '❔'}</span><div><div class="t">${esc(f ? f.n : e.n)}</div>
+        <div class="muted">${fmt(e.g)} g · ${fmt(kc, 'kkal')} kkal · protein ${fmt(pr)} g${f ? '' : ' · <span class="gap">data makanan tidak ditemukan</span>'}</div></div></button></div>`;
     }
+    h += `</div>`;
   }
   if (!ents.length) {
     const prev = dayEntries(addDays(curDate, -1));
-    h += `<div class="empty">Belum ada catatan untuk hari ini.<br><button class="btn primary" data-act="add" data-meal="${defaultMeal()}" style="margin-top:10px">Catat makanan</button>
+    h += `<div class="empty"><span class="em">🥗</span>Belum ada catatan. Yuk mulai dari sarapan!<br><button class="btn primary" data-act="add" data-meal="${defaultMeal()}" style="margin-top:12px">+ Catat makanan</button>
       ${prev.length ? `<br><button class="btn link" data-act="copy-prev" style="margin-top:6px">Salin ${prev.length} item dari hari sebelumnya</button>` : ''}</div>`;
   }
-  h += `</div>`;
   if (ents.length) {
     h += `<details class="card"><summary>Semua zat gizi (${NUTR.length})</summary>${nutrientTable(tot, C,
       'Tanda ≥ berarti sebagian makanan belum punya data zat gizi itu, jadi jumlah sebenarnya bisa lebih tinggi.' + (est ? ` ${est} item memakai nilai perkiraan.` : ''))}</details>`;
@@ -353,14 +456,29 @@ function renderHari() {
   el.innerHTML = h;
 }
 
+function openCatSheet(id) {
+  const c = KATEGORI.find(x => x.id === id), C = calc(prof()), tot = totals(dayEntries(curDate));
+  const s = catScore(c, tot, C), [cls, lb] = scoreTag(s);
+  openSheet(`<h2>${c.e} ${c.n}</h2><div class="row"><span style="font-size:30px;font-weight:800" class="num">${s}<span class="muted" style="font-size:14px">/100</span></span><span class="tag ${cls}">${lb}</span></div>
+    <p class="muted">${c.d}</p><table class="nt"><tbody>${c.k.map(k => nutRow(NMAP[k], tot, C)).join('')}</tbody></table>
+    <div class="row" style="margin-top:14px"><button class="btn grow" data-act="close">Tutup</button></div>`, ev => { if (ev.target.closest('[data-act=close]')) closeSheet(); });
+}
+
 $('#view-hari').addEventListener('click', ev => {
+  const cat = ev.target.closest('[data-cat]'); if (cat) { openCatSheet(cat.dataset.cat); return; }
   const b = ev.target.closest('[data-act]'); if (!b) return;
   const a = b.dataset.act;
   if (a === 'prev') { curDate = addDays(curDate, -1); renderHari(); }
   else if (a === 'next') { if (curDate < today()) { curDate = addDays(curDate, 1); renderHari(); } }
   else if (a === 'add') { catatMeal = b.dataset.meal; switchTab('catat'); }
   else if (a === 'edit') openEntrySheet(b.dataset.id);
-  else if (a === 'copy-prev') {
+  else if (a === 'water+') {
+    const f = FOODS.get(WATER_ID); if (!f) { toast('Data air putih tidak ditemukan'); return; }
+    addEntry(curDate, f, 250, defaultMeal()); renderHari();
+  } else if (a === 'water-') {
+    const list = dayEntries(curDate); const i = list.map(e => e.f).lastIndexOf(WATER_ID);
+    if (i >= 0) { list.splice(i, 1); if (!list.length) delete LOG[curDate]; saveLog(); renderHari(); }
+  } else if (a === 'copy-prev') {
     const prev = dayEntries(addDays(curDate, -1));
     LOG[curDate] = prev.map(e => ({ ...e, id: uid() })); saveLog(); renderHari(); toast('Catatan disalin');
   }
@@ -369,7 +487,7 @@ $('#view-hari').addEventListener('change', ev => {
   if (ev.target.id === 'date-pick' && ev.target.value) { curDate = ev.target.value > today() ? today() : ev.target.value; renderHari(); }
 });
 $('#view-hari').addEventListener('click', ev => {
-  const lab = ev.target.closest('label'); const inp = lab && $('#date-pick', lab);
+  const lab = ev.target.closest('label.dl'); const inp = lab && $('#date-pick', lab);
   if (inp && inp.showPicker) { try { inp.showPicker(); ev.preventDefault(); } catch (e) { /* tidak didukung */ } }
 });
 
@@ -486,12 +604,12 @@ function openEntrySheet(id) {
 }
 
 /* ---------- Catat ---------- */
-const SRC_CHIPS = [['semua', 'Semua'], ['fav', '★ Favorit'], ['recent', 'Terakhir'], ['TKPI', 'TKPI'], ['USDA', 'USDA pilihan'], ['Perkiraan', 'Menu jadi'], ['Sendiri', 'Buatan saya'], ['usdafull', 'USDA lengkap (Inggris)']];
+const SRC_CHIPS = [['semua', '✨ Semua'], ['fav', '⭐ Favorit'], ['recent', '🕘 Terakhir'], ['TKPI', '🇮🇩 TKPI'], ['USDA', '🇺🇸 USDA pilihan'], ['Perkiraan', '🍱 Menu jadi'], ['Sendiri', '✍️ Buatan saya'], ['usdafull', '🌎 USDA lengkap (Inggris)']];
 
 function renderCatat() {
   const el = $('#view-catat');
   const kel = [...new Set(BASE.map(f => f.k).concat(custom.map(f => f.k)).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'id'));
-  el.innerHTML = `<div class="chips" role="tablist" aria-label="Waktu makan">${MEALS.map(([k, l]) => `<button class="chip ${k === catatMeal ? 'on' : ''}" data-meal="${k}">${l}</button>`).join('')}</div>
+  el.innerHTML = `<div class="chips" role="tablist" aria-label="Waktu makan">${MEALS.map(([k, l]) => `<button class="chip ${k === catatMeal ? 'on' : ''}" data-meal="${k}">${MEAL_EMOJI[k][0]} ${l}</button>`).join('')}</div>
     <div class="muted small">Tanggal: ${esc(fmtDate(curDate))}${curDate !== today() ? ' · <button class="btn link" data-act="to-today">ganti ke hari ini</button>' : ''}</div>
     <input type="search" id="q" placeholder="Cari makanan, mis. nasi, telur rebus, tempe" value="${esc(catatQ)}" autocomplete="off" enterkeyhint="search" aria-label="Cari makanan">
     <div class="chips" id="src-chips">${SRC_CHIPS.map(([k, l]) => `<button class="chip ${k === catatSrc ? 'on' : ''}" data-src="${k}">${l}</button>`).join('')}</div>
@@ -545,8 +663,8 @@ async function renderResults() {
 
 function itemHtml(f) {
   const e = f.v.energi;
-  return `<div class="item"><button class="pick" data-fid="${esc(f.id)}"><div class="t">${esc(f.n)}</div>
-    <div class="muted">${srcBadge(f)} ${esc(f.k || '')} · ${e == null ? '–' : fmt(e, 'kkal')} kkal · protein ${fmt(f.v.protein)} g /100 g</div></button>
+  return `<div class="item"><button class="pick fx" data-fid="${esc(f.id)}"><span class="fe">${foodEmoji(f)}</span><div><div class="t">${esc(f.n)}</div>
+    <div class="muted">${srcBadge(f)} ${esc(f.k || '')} · ${e == null ? '–' : fmt(e, 'kkal')} kkal · protein ${fmt(f.v.protein)} g /100 g</div></div></button>
     <button class="btn link" data-star="${esc(f.id)}" aria-label="Favorit">${favs.includes(f.id) ? '★' : '☆'}</button></div>`;
 }
 
@@ -659,12 +777,12 @@ function renderRiwayat() {
   const avg = k => tots.length ? tots.reduce((a, t) => a + t[k], 0) / tots.length : null;
   const protHit = tots.filter(t => t.protein >= C.t.protein.v).length;
   let h = `<div class="chips">${[7, 30, 90].map(n => `<button class="chip ${n === riwRange ? 'on' : ''}" data-range="${n}">${n} hari</button>`).join('')}</div>
-    <div class="stats"><div class="stat"><b class="num">${fmt(avg('energi'), 'kkal')}</b><span>rata-rata kkal/hari</span></div>
-      <div class="stat"><b class="num">${fmt(avg('protein'))} g</b><span>rata-rata protein</span></div>
-      <div class="stat"><b class="num">${logged.length}/${riwRange}</b><span>hari tercatat</span></div></div>
+    <div class="stats"><div class="stat"><span class="em">⚡</span><b class="num">${fmt(avg('energi'), 'kkal')}</b><span>rata-rata kkal/hari</span></div>
+      <div class="stat"><span class="em">🥩</span><b class="num">${fmt(avg('protein'))} g</b><span>rata-rata protein</span></div>
+      <div class="stat"><span class="em">🔥</span><b class="num">${streak()} hari</b><span>beruntun · ${logged.length}/${riwRange} tercatat</span></div></div>
     <p class="muted">Rata-rata dihitung dari hari yang ada catatannya. Target protein tercapai ${protHit} dari ${logged.length} hari.</p>
-    <div class="card"><h3 style="margin-top:0">Energi per hari (kkal)</h3>${barChart(days, 'energi', C.t.energi.v, 'kkal', 'Energi')}</div>
-    <div class="card"><h3 style="margin-top:0">Protein per hari (g)</h3>${barChart(days, 'protein', C.t.protein.v, 'g', 'Protein')}</div>`;
+    <div class="card"><h3 style="margin-top:0">⚡ Energi per hari (kkal)</h3>${barChart(days, 'energi', C.t.energi.v, 'kkal', 'Energi')}</div>
+    <div class="card"><h3 style="margin-top:0">🥩 Protein per hari (g)</h3>${barChart(days, 'protein', C.t.protein.v, 'g', 'Protein')}</div>`;
   if (tots.length) {
     const avgTot = { sum: {}, miss: {}, n: 1 };
     for (const k of NK) { avgTot.sum[k] = avg(k); avgTot.miss[k] = 0; }
@@ -699,7 +817,7 @@ function renderProfil() {
   const lpRisk = p.lp ? (p.lp >= (p.jk === 'L' ? 90 : 80)) : null;
   const tj = TUJUAN[p.tujuan] || TUJUAN.jaga;
   let h = `<div class="chips">${profiles.map(x => `<button class="chip ${x.id === activeId ? 'on' : ''}" data-pid="${esc(x.id)}">${esc(x.nama)}</button>`).join('')}<button class="chip" data-act="p-new">+ Profil baru</button></div>
-  <div class="card"><h3 style="margin-top:0">Data diri</h3>
+  <div class="card"><h3 style="margin-top:0">🙋 Data diri</h3>
     <label class="f">Nama profil<input type="text" id="p-nama" value="${esc(p.nama)}"></label>
     <div class="grid2"><label class="f">Jenis kelamin<select id="p-jk"><option value="L" ${p.jk === 'L' ? 'selected' : ''}>Laki-laki</option><option value="P" ${p.jk === 'P' ? 'selected' : ''}>Perempuan</option></select></label>
       <label class="f">Usia (tahun)<input type="number" inputmode="numeric" id="p-usia" min="1" max="120" value="${p.usia}"></label>
@@ -711,13 +829,14 @@ function renderProfil() {
     <div class="row" style="margin-top:14px"><button class="btn primary grow" data-act="p-save">Simpan</button>${profiles.length > 1 ? '<button class="btn danger" data-act="p-del">Hapus profil</button>' : ''}</div>
     <p class="muted">Menyimpan berat atau lingkar pinggang yang berubah akan menambah baris di Riwayat.</p></div>
 
-  <div class="card"><h3 style="margin-top:0">Komposisi tubuh</h3>
+  <div class="card"><h3 style="margin-top:0">📏 Komposisi tubuh</h3>
+    ${bmiGauge(C.bmi)}
     <div class="stats"><div class="stat"><b class="num">${fmt(C.bmi)}</b><span>IMT · <span class="status ${bcls}">${bc}</span></span></div>
       <div class="stat"><b class="num">${C.whtr ? C.whtr.toLocaleString('id-ID', { maximumFractionDigits: 2 }) : '–'}</b><span>pinggang : tinggi · ${C.whtr ? `<span class="status ${C.whtr < 0.5 ? 'good' : 'warn'}">${C.whtr < 0.5 ? 'baik' : 'perlu perhatian'}</span>` : ''}</span></div>
       <div class="stat"><b class="num">${p.lp ? fmt(p.lp) : '–'}</b><span>pinggang cm · ${lpRisk == null ? '' : `<span class="status ${lpRisk ? 'bad' : 'good'}">${lpRisk ? 'obesitas sentral' : 'normal'}</span>`}</span></div></div>
     <p class="muted">IMT memakai batas Asia-Pasifik (normal 18,5–22,9). Lingkar pinggang dinilai berisiko bila ≥${p.jk === 'L' ? 90 : 80} cm; rasio pinggang/tinggi idealnya di bawah 0,5. IMT tidak membedakan otot dan lemak, jadi untuk tujuan otot lean pantau juga lingkar pinggang.</p></div>
 
-  <div class="card"><h3 style="margin-top:0">Target harian</h3>
+  <div class="card"><h3 style="margin-top:0">🎯 Target harian</h3>
     <table class="nt"><tbody>
       ${C.dewasa ? `<tr><td>Energi basal (BMR, Mifflin-St Jeor)</td><td class="v">${fmt(C.bmr, 'kkal')} kkal</td></tr>
       <tr><td>Kebutuhan harian (TDEE × ${String(p.akt).replace('.', ',')})</td><td class="v">${fmt(C.tdee, 'kkal')} kkal</td></tr>
@@ -733,7 +852,7 @@ function renderProfil() {
       <tr><td>Air total (minum + makanan)</td><td class="v">${fmt(C.t.air ? C.t.air.v : null)} ml</td></tr>
     </tbody></table>
     <p class="muted">Vitamin dan mineral mengikuti AKG (Permenkes No. 28 Tahun 2019) untuk ${p.jk === 'L' ? 'laki-laki' : 'perempuan'} ${C.row.min}–${C.row.max} tahun. ${C.dewasa ? 'Protein tidak pernah di bawah AKG.' : 'Untuk usia di bawah 18 tahun, energi dan makro memakai angka AKG langsung.'} Kehamilan dan menyusui belum dihitung; konsultasikan dengan tenaga kesehatan.</p></div>
-  ${p.tujuan === 'lean' ? `<div class="card"><h3 style="margin-top:0">Panduan otot lean</h3><ul class="small" style="padding-left:18px;margin:6px 0">
+  ${p.tujuan === 'lean' ? `<div class="card"><h3 style="margin-top:0">💪 Panduan otot lean</h3><ul class="small" style="padding-left:18px;margin:6px 0">
     <li>Surplus kecil sekitar 250 kkal. Targetkan berat naik ±0,25–0,5 kg per bulan. Bila naik lebih cepat dan lingkar pinggang ikut bertambah, kurangi 100–200 kkal.</li>
     <li>Bagi protein ke 3–5 kali makan, masing-masing sekitar ${fmt(Math.round(p.bb * 0.4))} g (0,4 g/kg), termasuk 1 porsi dalam 2 jam setelah latihan.</li>
     <li>Latihan beban atau kalistenik progresif 3–5 kali per minggu: tambah repetisi, beban, atau tingkat kesulitan gerakan secara bertahap.</li>
@@ -776,7 +895,7 @@ function renderData() {
   const el = $('#view-data');
   const cnt = {}; for (const f of BASE) cnt[f.s] = (cnt[f.s] || 0) + 1;
   const nDays = Object.keys(LOG).length;
-  el.innerHTML = `<div class="card"><h3 style="margin-top:0">Database makanan</h3>
+  el.innerHTML = `<div class="card"><h3 style="margin-top:0">🗂️ Database makanan</h3>
     <p><b class="num">${BASE.length.toLocaleString('id-ID')}</b> bahan bawaan + <b class="num">${custom.length}</b> buatan Anda + 8.789 USDA lengkap.</p>
     <p class="muted">TKPI ${cnt.TKPI || 0} · USDA pilihan ${cnt.USDA || 0} · Menu jadi (perkiraan) ${(cnt.Perkiraan || 0) + (cnt['Turunan TKPI'] || 0)} · Versi ${esc(fmtVer(DBV))}</p>
     <div class="row wrap"><button class="btn small" data-act="check">Cek pembaruan</button><button class="btn small" data-act="db-csv">Unduh database (CSV)</button></div></div>
@@ -786,14 +905,14 @@ function renderData() {
     <div class="row wrap" style="margin-top:8px"><button class="btn small" data-act="new-food">+ Buat makanan</button>${custom.length ? '<button class="btn small" data-act="my-csv">Unduh untuk ditambahkan ke database (CSV)</button>' : ''}</div>
     <p class="muted">File CSV ini formatnya sama dengan <code>data/tambahan.csv</code>. Kirimkan ke project agar makanan Anda masuk database untuk semua orang.</p></div>
 
-  <div class="card"><h3 style="margin-top:0">Cadangan</h3>
+  <div class="card"><h3 style="margin-top:0">💾 Cadangan</h3>
     <p class="muted">Semua data pribadi hanya tersimpan di perangkat ini. Unduh cadangan secara berkala, terutama sebelum ganti HP atau menghapus data browser.</p>
     <div class="row wrap"><button class="btn small primary" data-act="backup">Unduh cadangan lengkap (JSON)</button>
       <label class="btn small">Pulihkan dari cadangan<input type="file" id="restore" accept=".json,application/json" hidden></label></div>
     <div class="row wrap" style="margin-top:8px"><button class="btn small" data-act="hist-csv">Riwayat per item (CSV)</button><button class="btn small" data-act="day-csv">Total per hari (CSV)</button></div>
     <p class="muted">Profil aktif: ${esc(prof().nama)} · ${nDays} hari tercatat. Memulihkan cadangan akan menggabungkan data, bukan menghapus yang sudah ada.</p></div>
 
-  <div class="card"><h3 style="margin-top:0">Sumber data</h3><ul class="small" style="padding-left:18px;margin:4px 0">
+  <div class="card"><h3 style="margin-top:0">📚 Sumber data</h3><ul class="small" style="padding-left:18px;margin:4px 0">
     <li>Tabel Komposisi Pangan Indonesia (TKPI) 2017, Kementerian Kesehatan RI: ${cnt.TKPI || 0} bahan, per 100 g bagian yang dapat dimakan. Zat gizi yang tidak dimuat TKPI (mis. lemak jenuh, kolesterol, gula, vitamin B6, B12, D, E, K) dilengkapi dari USDA bila ada padanan yang sesuai, dan ditandai.</li>
     <li>USDA National Nutrient Database for Standard Reference, Legacy Release (domain publik).</li>
     <li>Angka Kecukupan Gizi: Permenkes RI No. 28 Tahun 2019.</li>
