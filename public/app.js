@@ -303,7 +303,7 @@ function macroBar(k, tot, C) {
   const n = NMAP[k], tg = C.t[k], v = tot.sum[k], st = status(k, v, tg);
   const ge = tot.miss[k] ? '≥ ' : '';
   const icon = st.cls === 'bad' ? '✕' : st.cls === 'warn' ? '!' : '✓';
-  return `<div class="macro"><div class="h"><span>${esc(n.label)} ${tot.n ? `<span class="tag ${st.cls}">${icon} ${st.label}</span>` : ''}</span>
+  return `<div class="macro"><div class="h"><span>${esc(n.label)} ${tot.n && st.label ? `<span class="tag ${st.cls}">${icon} ${st.label}</span>` : ''}</span>
     <span class="num">${ge}${fmt(v)} <span class="muted">/ ${fmt(tg ? tg.v : null)} ${esc(n.unit)}</span></span></div>
     <div class="bar"><i class="${st.cls}" style="width:${clamp((st.pct || 0) * 100, 0, 100).toFixed(1)}%"></i></div>
     ${tot.miss[k] ? `<div class="gap">${tot.miss[k]} item belum punya data ${esc(n.label.toLowerCase())}</div>` : ''}</div>`;
@@ -391,14 +391,7 @@ function renderHari() {
     <div class="goal">🎯 ${esc((TUJUAN[p.tujuan] || TUJUAN.jaga).label)}</div></section>`;
 
   // Asupan utama
-  const MAC = [['protein', '🥩', 'var(--c1)'], ['kh', '🍚', 'var(--c2)'], ['lemak', '🥑', 'var(--c3)'], ['serat', '🥦', 'var(--c4)']];
-  const LBL = { protein: 'Protein', kh: 'Karbo', lemak: 'Lemak', serat: 'Serat' };
-  h += `<div class="sec-h"><h2>Asupan utama</h2><span class="muted">gram</span></div><div class="tiles">${MAC.map(([k, em, col]) => {
-    const tg = C.t[k].v, v = tot.sum[k];
-    return `<div class="tile">${miniRing(tg ? v / tg : 0, col, em)}<div style="min-width:0"><div class="t1"><span class="sw" style="background:${col}"></span>${LBL[k]}</div>
-      <div class="t2 num">${tot.miss[k] ? '<span class="ge">≥</span>' : ''}${fmt(v)}<span class="muted" style="font-size:12px;font-weight:600"> / ${fmt(tg)}</span></div>
-      <div class="t3">${tg ? Math.round(v / tg * 100) : 0}% target</div></div></div>`;
-  }).join('')}</div>`;
+  h += `<div class="card"><h3>Asupan utama</h3>${macroBar('protein', tot, C)}${macroBar('kh', tot, C)}${macroBar('lemak', tot, C)}${macroBar('serat', tot, C)}</div>`;
 
   // Komposisi energi
   const kP = tot.sum.protein * 4, kK = tot.sum.kh * 4, kL = tot.sum.lemak * 9, kS = kP + kK + kL;
@@ -409,13 +402,6 @@ function renderHari() {
     <div class="legend"><div><span class="sw" style="background:var(--c1)"></span>Protein<b class="num">${pc(kP)}%</b>ideal ${Math.round(tP * 100)}%</div>
       <div><span class="sw" style="background:var(--c2)"></span>Karbo<b class="num">${pc(kK)}%</b>ideal ${Math.round(tK * 100)}%</div>
       <div><span class="sw" style="background:var(--c3)"></span>Lemak<b class="num">${pc(kL)}%</b>ideal ${Math.round(tL * 100)}%</div></div></div>`;
-
-  // Air minum
-  const wc = waterCount(ents), wt = Math.max(6, Math.round((C.t.air ? C.t.air.v : 2000) * 0.8 / 250));
-  h += `<div class="card"><div class="row" style="justify-content:space-between"><h3 style="margin:0">💧 Air minum</h3><span class="num" style="font-weight:800">${fmt(wc)} <span class="muted">/ ${wt} gelas</span></span></div>
-    <div class="water" style="margin-top:10px"><div class="drops" role="img" aria-label="${fmt(wc)} dari ${wt} gelas">${Array.from({ length: Math.max(wt, Math.ceil(wc)) }, (_, i) => drop(i < Math.floor(wc + 0.001))).join('')}</div>
-    <button class="btn round" data-act="water-" aria-label="Kurangi 1 gelas" ${wc ? '' : 'disabled'}>−</button><button class="btn round primary" data-act="water+" aria-label="Tambah 1 gelas">+</button></div>
-    <div class="muted small" style="margin-top:6px">1 gelas = 250 ml. ${wc >= wt ? 'Target tercapai, mantap! 🎉' : `Kurang ${fmt(wt - wc)} gelas lagi.`}</div></div>`;
 
   // Skor kategori
   h += `<div class="sec-h"><h2>Skor kesehatan</h2><span class="muted">ketuk untuk detail</span></div><div class="cats">${KATEGORI.map(c => {
@@ -431,7 +417,7 @@ function renderHari() {
   // Makanan per waktu makan
   h += `<div class="sec-h"><h2>Makananmu</h2><span class="muted num">${ents.length} item</span></div>`;
   for (const [m, label] of MEALS) {
-    const me = ents.filter(e => e.m === m && e.f !== WATER_ID);
+    const me = ents.filter(e => e.m === m);
     const kcal = me.reduce((a, e) => a + (entryVal(e, 'energi') || 0), 0);
     const [em, bg] = MEAL_EMOJI[m];
     h += `<div class="meal"><div class="meal-h"><span class="me" style="background:${bg}">${em}</span><div class="grow"><b>${label}</b>
