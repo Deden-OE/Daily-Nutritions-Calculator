@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kalkulator Gizi</title>
+<meta name="description" content="Catat makanan dan minuman harian, hitung 34 zat gizi dari TKPI dan USDA, bandingkan dengan AKG.">
+<meta name="theme-color" content="#1f7a4d">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Kalkulator Gizi">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">Kalkulator Gizi</div>
+  <button class="profile-chip" id="profile-chip" type="button" aria-label="Ganti profil"></button>
+</header>
+
+<main id="main">
+  <section id="view-hari" class="view"></section>
+  <section id="view-catat" class="view" hidden></section>
+  <section id="view-riwayat" class="view" hidden></section>
+  <section id="view-profil" class="view" hidden></section>
+  <section id="view-data" class="view" hidden></section>
+</main>
+
+<nav class="tabs" aria-label="Menu utama">
+  <button data-tab="hari" class="on"><span class="ic" aria-hidden="true">◎</span>Hari ini</button>
+  <button data-tab="catat"><span class="ic" aria-hidden="true">＋</span>Catat</button>
+  <button data-tab="riwayat"><span class="ic" aria-hidden="true">▤</span>Riwayat</button>
+  <button data-tab="profil"><span class="ic" aria-hidden="true">☺</span>Profil</button>
+  <button data-tab="data"><span class="ic" aria-hidden="true">⇅</span>Data</button>
+</nav>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+<div id="tip" class="tip" hidden></div>
+
+<script src="app.js"></script>
+</body>
+</html>
