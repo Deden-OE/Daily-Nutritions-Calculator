@@ -1,6 +1,6 @@
 /* Service worker: aplikasi tetap bisa dipakai tanpa internet.
    Strategi: utamakan jaringan (agar selalu dapat versi terbaru), pakai cache bila offline. */
-const CACHE = 'kalkulator-gizi-v3';
+const CACHE = 'kalkulator-gizi-v4';
 const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'data/foods.json', 'data/akg.json', 'data/version.json'];
 
 self.addEventListener('install', e => {
