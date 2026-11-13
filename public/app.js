@@ -1,4 +1,4 @@
-/* Kalkulator Gizi v2 — aplikasi tanpa server. Semua data pribadi disimpan di perangkat (localStorage). */
+/* Nutri Calc — aplikasi tanpa server. Semua data pribadi disimpan di perangkat (localStorage). */
 (() => {
 'use strict';
 
@@ -256,7 +256,7 @@ function render() {
   $('#profile-chip').innerHTML = `<span class="av">${esc((p.nama || '?').trim().charAt(0).toUpperCase())}</span><span class="nm">${esc(p.nama)}</span>`;
   const h = new Date().getHours();
   $('#hello').textContent = `${h < 11 ? 'Selamat pagi' : h < 15 ? 'Selamat siang' : h < 18 ? 'Selamat sore' : 'Selamat malam'}, ${p.nama} 👋`;
-  $('#subhello').textContent = fmtDate(today());
+  $('#subhello').textContent = 'Nutri Calc · ' + fmtDate(today());
   if (tab === 'hari') renderHari();
   else if (tab === 'catat') renderCatat();
   else if (tab === 'riwayat') renderRiwayat();
@@ -925,7 +925,7 @@ $('#view-data').addEventListener('click', async ev => {
   else if (a === 'backup') {
     const logs = {}; for (const p of profiles) logs[p.id] = LS.get('log.' + p.id, {});
     const data = { app: 'kalkulator-gizi', format: 2, dibuat: new Date().toISOString(), db: DBV, profiles, active: activeId, logs, custom, extra, favs, recent };
-    download(`cadangan-kalkulator-gizi-${stamp}.json`, JSON.stringify(data), 'application/json');
+    download(`cadangan-nutri-calc-${stamp}.json`, JSON.stringify(data), 'application/json');
   } else if (a === 'hist-csv' || a === 'day-csv') {
     const days = Object.keys(LOG).sort();
     if (!days.length) { toast('Belum ada riwayat'); return; }

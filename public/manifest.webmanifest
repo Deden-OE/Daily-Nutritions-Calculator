@@ -1,6 +1,6 @@
 {
-  "name": "Kalkulator Gizi",
-  "short_name": "Gizi",
+  "name": "Nutri Calc",
+  "short_name": "Nutri Calc",
   "description": "Catat makanan harian, hitung 34 zat gizi dari TKPI dan USDA, bandingkan dengan AKG.",
   "lang": "id",
   "start_url": "./",

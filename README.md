@@ -1,4 +1,4 @@
-# Kalkulator Gizi
+# Nutri Calc
 
 Aplikasi web (PWA) untuk mencatat makanan dan minuman harian, menghitung **34 zat gizi**, dan membandingkannya dengan target harian berdasarkan **AKG (Permenkes No. 28 Tahun 2019)**, usia, jenis kelamin, berat, tinggi, aktivitas, dan tujuan.
 
