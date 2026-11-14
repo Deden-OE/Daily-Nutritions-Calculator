@@ -321,3 +321,6 @@ ul li { margin: 4px 0; }
 .right { text-align: right; }
 .spin { display: inline-block; width: 18px; height: 18px; border: 3px solid var(--tint); border-top-color: var(--pine); border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -4px; margin-right: 6px; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+main { overflow-x: clip; }
+#view-hari { will-change: transform; touch-action: pan-y; }

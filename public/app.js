@@ -493,6 +493,44 @@ $('#view-hari').addEventListener('click', ev => {
   if (inp && inp.showPicker) { try { inp.showPicker(); ev.preventDefault(); } catch (e) { /* tidak didukung */ } }
 });
 
+/* Geser kiri/kanan di halaman Hari ini untuk pindah tanggal (tombol ‹ › tetap ada). */
+(() => {
+  const v = $('#view-hari');
+  let x0 = 0, y0 = 0, dx = 0, mode = '', busy = false;
+  const canNext = () => curDate < today();
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const set = (x, t) => { v.style.transition = t ? `transform ${t}ms ease, opacity ${t}ms ease` : 'none'; v.style.transform = x ? `translateX(${x}px)` : ''; v.style.opacity = x ? String(Math.max(.4, 1 - Math.abs(x) / 600)) : ''; };
+  v.addEventListener('touchstart', ev => {
+    if (busy || ev.touches.length !== 1 || ev.target.closest('.chips, input, select, textarea, .stack, [data-noswipe]')) { mode = 'off'; return; }
+    x0 = ev.touches[0].clientX; y0 = ev.touches[0].clientY; dx = 0; mode = '';
+  }, { passive: true });
+  v.addEventListener('touchmove', ev => {
+    if (mode === 'off') return;
+    const mx = ev.touches[0].clientX - x0, my = ev.touches[0].clientY - y0;
+    if (!mode) { if (Math.abs(mx) < 10 && Math.abs(my) < 10) return; mode = Math.abs(mx) > Math.abs(my) * 1.2 ? 'h' : 'off'; }
+    if (mode !== 'h') return;
+    dx = mx;
+    if (dx < 0 && !canNext()) dx = dx / 4; // tahan: tidak bisa ke hari setelah hari ini
+    set(dx);
+  }, { passive: true });
+  const end = () => {
+    if (mode !== 'h') { mode = ''; return; }
+    mode = '';
+    const w = v.clientWidth || innerWidth, go = Math.abs(dx) > Math.min(90, w * 0.22);
+    const dir = dx > 0 ? -1 : 1; // geser ke kanan = hari sebelumnya
+    if (!go || (dir > 0 && !canNext())) { set(0, 180); if (dir > 0 && go) toast('Belum bisa melihat hari setelah hari ini'); return; }
+    if (reduce) { set(0); curDate = addDays(curDate, dir); renderHari(); return; }
+    busy = true;
+    set(-dir * w, 160);
+    setTimeout(() => {
+      curDate = addDays(curDate, dir); renderHari();
+      set(dir * w * 0.6); requestAnimationFrame(() => requestAnimationFrame(() => { set(0, 200); setTimeout(() => { v.style.transition = ''; busy = false; }, 210); }));
+    }, 165);
+  };
+  v.addEventListener('touchend', end);
+  v.addEventListener('touchcancel', () => { if (mode === 'h') set(0, 150); mode = ''; });
+})();
+
 /* ---------- Sheet (panel bawah) ---------- */
 function openSheet(html, onClick) {
   closeSheet();
