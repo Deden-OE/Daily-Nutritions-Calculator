@@ -1192,16 +1192,18 @@ function openKeySheet(after) {
     <p>Fitur ini memakai Google Gemini dengan <b>kuota gratis</b>. Anda perlu API key sendiri (gratis, sekali saja):</p>
     <ol class="small" style="padding-left:18px">
       <li>Buka <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>, masuk dengan akun Google.</li>
-      <li>Tekan <b>Create API key</b> (atau "Buat kunci API"), salin key-nya (diawali <code>AIza…</code>).</li>
+      <li>Tekan <b>Create API key</b> (atau "Buat kunci API"), salin key-nya.</li>
       <li>Tempel di bawah, lalu tekan Simpan.</li></ol>
-    <label class="f">API key Gemini<input type="password" id="gk" autocomplete="off" placeholder="AIza…" value="${esc(gemKey())}"></label>
+    <label class="f">API key Gemini<input type="text" id="gk" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Tempel API key di sini" value="${esc(gemKey())}"></label>
     <div class="note small">Key hanya disimpan di HP ini, tidak dikirim ke mana pun selain Google. Di kuota gratis, Google boleh memakai foto untuk melatih modelnya, jadi jangan kirim foto pribadi. Batas gratis per menit/per hari diatur Google dan bisa berubah.</div>
     <div class="row" style="margin-top:12px">${gemKey() ? '<button class="btn danger" data-act="gk-del">Hapus key</button>' : ''}<button class="btn primary grow" data-act="gk-save">Simpan & cek</button></div>
     <div id="gk-msg" class="muted small" style="margin-top:8px"></div>`, async ev => {
     const b = ev.target.closest('[data-act]'); if (!b) return;
     if (b.dataset.act === 'gk-del') { LS.set('gemkey', ''); LS.set('gemmodels', null); closeSheet(); toast('API key dihapus'); if (tab === 'data') render(); return; }
-    const key = $('#gk', s).value.trim();
-    if (!/^[\w-]{20,}$/.test(key)) { $('#gk-msg', s).textContent = 'Format key tidak dikenali. Salin ulang dari AI Studio.'; return; }
+    // buang spasi, baris baru, karakter tak terlihat, dan tanda kutip yang ikut tersalin
+    const key = $('#gk', s).value.replace(/[\s\u200B-\u200D\u2060\uFEFF"'`“”‘’<>]/g, '').replace(/^(key|apikey|api_key)[:=]/i, '');
+    $('#gk', s).value = key;
+    if (key.length < 16) { $('#gk-msg', s).textContent = 'Key terlalu pendek. Pastikan seluruh key tersalin.'; return; }
     b.disabled = true; $('#gk-msg', s).textContent = 'Mengecek key…';
     try {
       const ms = await gemModels(key);
