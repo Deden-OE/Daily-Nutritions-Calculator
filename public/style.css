@@ -93,9 +93,19 @@ main { max-width: 720px; margin: 0 auto; padding: 4px 16px 24px; }
 }
 .tabs .ic { width: 22px; height: 22px; }
 .tabs button.on { color: var(--accent); background: var(--tint); }
-.tabs button.fab { flex: 0 0 58px; height: 58px; margin: -22px 4px 0; border-radius: 50%; background: var(--pine); color: #fff; box-shadow: 0 8px 18px rgba(15, 90, 69, .35); font-size: 0; gap: 0; }
+.tabs button.fab { flex: 0 0 76px; margin: -26px 2px 0; padding: 0 0 4px; gap: 3px; color: var(--accent); background: none; }
+.tabs button.fab .fab-c { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; background: var(--pine); color: #fff; box-shadow: 0 8px 18px rgba(15, 90, 69, .35); border: 3px solid var(--surface); }
 .tabs button.fab .ic { width: 28px; height: 28px; }
-.tabs button.fab.on { background: var(--pine-2); color: var(--pop); }
+.tabs button.fab .fab-l { font-size: 10px; line-height: 1.15; font-weight: 700; text-align: center; }
+.tabs button.fab.on { background: none; }
+.tabs button.fab.on .fab-c { background: var(--pine-2); color: var(--pop); }
+.datebar .dl { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.cal { width: 22px; height: 22px; color: var(--text); flex: none; }
+.amt { display: flex; gap: 8px; align-items: stretch; margin-top: 6px; }
+.amt input { flex: 1; min-width: 0; margin: 0; }
+.seg-u { display: flex; background: var(--tint); border-radius: 14px; padding: 3px; gap: 2px; flex: none; }
+.seg-u button { border: 0; background: none; padding: 0 12px; border-radius: 11px; font: inherit; font-size: 13.5px; font-weight: 700; color: var(--muted); cursor: pointer; min-height: 40px; }
+.seg-u button.on { background: var(--surface); color: var(--accent); box-shadow: 0 1px 4px rgba(6, 30, 22, .15); }
 
 /* Tipografi umum */
 h2 { font-size: 18px; font-weight: 800; letter-spacing: -.02em; margin: 24px 2px 10px; }

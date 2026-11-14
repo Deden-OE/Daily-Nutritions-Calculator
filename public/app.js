@@ -192,8 +192,9 @@ function totals(entries) {
   return { sum, miss, n: entries.length };
 }
 
-function addEntry(date, food, g, meal) {
-  const e = { id: uid(), f: food.id, n: food.n, g, m: meal, e: food.v.energi != null ? +(food.v.energi * g / 100).toFixed(1) : null, pr: food.v.protein != null ? +(food.v.protein * g / 100).toFixed(2) : null };
+function qtyLabel(e) { return e.u && e.u !== 'g' && e.q ? `${fmt(e.q)} ${e.u} (${fmt(e.g)} g)` : `${fmt(e.g)} g`; }
+function addEntry(date, food, g, meal, u, q) {
+  const e = { id: uid(), f: food.id, n: food.n, g, m: meal, ...(u && u !== 'g' ? { u, q } : {}), e: food.v.energi != null ? +(food.v.energi * g / 100).toFixed(1) : null, pr: food.v.protein != null ? +(food.v.protein * g / 100).toFixed(2) : null };
   (LOG[date] = LOG[date] || []).push(e);
   saveLog();
   recent = [food.id, ...recent.filter(x => x !== food.id)].slice(0, 30);
@@ -382,7 +383,7 @@ function renderHari() {
   const est = ents.filter(e => { const f = foodOf(e); return f && f.s === 'Perkiraan'; }).length;
   const st = streak();
   let h = `<div class="datebar"><button class="btn" data-act="prev" aria-label="Hari sebelumnya">‹</button>
-    <label class="dl">${curDate === today() ? '📅 Hari ini' : '📅 ' + fmtDate(curDate)}
+    <label class="dl">${calIcon(curDate)}${curDate === today() ? 'Hari ini' : fmtDate(curDate)}
     <input type="date" id="date-pick" value="${curDate}" style="position:absolute;opacity:0;width:1px;height:1px;left:0"></label>
     <button class="btn" data-act="next" aria-label="Hari berikutnya" ${curDate >= today() ? 'disabled' : ''}>›</button></div>`;
 
@@ -441,13 +442,13 @@ function renderHari() {
     for (const e of me) {
       const f = foodOf(e), kc = entryVal(e, 'energi'), pr = entryVal(e, 'protein');
       h += `<div class="item"><button class="pick fx" data-act="edit" data-id="${e.id}"><span class="fe">${f ? foodEmoji(f) : '❔'}</span><div><div class="t">${esc(f ? f.n : e.n)}</div>
-        <div class="muted">${fmt(e.g)} g · ${fmt(kc, 'kkal')} kkal · protein ${fmt(pr)} g${f ? '' : ' · <span class="gap">data makanan tidak ditemukan</span>'}</div></div></button></div>`;
+        <div class="muted">${qtyLabel(e)} · ${fmt(kc, 'kkal')} kkal · protein ${fmt(pr)} g${f ? '' : ' · <span class="gap">data makanan tidak ditemukan</span>'}</div></div></button></div>`;
     }
     h += `</div>`;
   }
   if (!ents.length) {
     const prev = dayEntries(addDays(curDate, -1));
-    h += `<div class="empty"><span class="em">🥗</span>Belum ada catatan. Yuk mulai dari sarapan!<br><button class="btn primary" data-act="add" data-meal="${defaultMeal()}" style="margin-top:12px">+ Catat makanan</button>
+    h += `<div class="empty"><span class="em">🥗</span>Belum ada catatan. Yuk mulai dari sarapan!<br><button class="btn primary" data-act="add" data-meal="${defaultMeal()}" style="margin-top:12px">+ Input makanan & minuman</button>
       ${prev.length ? `<br><button class="btn link" data-act="copy-prev" style="margin-top:6px">Salin ${prev.length} item dari hari sebelumnya</button>` : ''}</div>`;
   }
   if (ents.length) {
@@ -531,6 +532,42 @@ function foodInfo(f) {
   return lines.length ? `<div class="note">${lines.join('<br>')}</div>` : '';
 }
 
+
+function calIcon(ds) {
+  const d = +ds.slice(8, 10);
+  return `<svg class="cal" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4" width="19" height="17.5" rx="4" fill="var(--surface)" stroke="currentColor" stroke-width="1.6"/>
+    <path d="M2.5 9.5h19V8a4 4 0 0 0-4-4h-11a4 4 0 0 0-4 4z" fill="var(--bad)"/><path d="M7.5 2.5v3M16.5 2.5v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    <text x="12" y="18.6" text-anchor="middle" font-size="9.5" font-weight="800" fill="currentColor">${d}</text></svg>`;
+}
+
+/* Takaran sendok: gram per 1 sdm peres (15 ml × kerapatan bahan); 1 sdt = 1/3 sdm. */
+const SPOON = [
+  [/garam/, 18, 'garam'],
+  [/madu|sirup|sirop|gula cair|molase|selai(?! kacang)|\bjam\b|srikaya|nutella|cokelat oles/, 21, 'madu, sirup, selai'],
+  [/kecap asin|kecap ikan|shoyu|saus tiram|saos tiram|cuka/, 16, 'kecap asin, saus cair'],
+  [/kecap/, 18, 'kecap manis'],
+  [/saus|saos|sambal|ketchup|mayo|mayones|dressing|petis|tauco|terasi/, 16, 'saus, sambal, mayones'],
+  [/minyak|\boil\b/, 13.5, 'minyak'],
+  [/mentega|margarin|butter|ghee|keju kacang|selai kacang/, 14, 'mentega, margarin, selai kacang'],
+  [/gula halus|gula bubuk/, 8, 'gula halus'],
+  [/gula aren|gula merah|gula jawa|gula kelapa|gula semut/, 12, 'gula aren/merah (disisir)'],
+  [/gula/, 12.5, 'gula pasir'],
+  [/susu bubuk|bubuk|whey|creamer|krimer|kakao|cocoa|milo|ovaltine|kopi instan/, 7, 'bubuk (susu, kopi, kakao)'],
+  [/tepung|maizena|tapioka|kanji|sagu|terigu|oat|havermut|granola|panir/, 8, 'tepung, oat'],
+  [/beras|jagung pipil|kacang hijau|kacang merah|kedelai|wijen|chia|kacang tanah|mete|almond|kuaci|biji/, 12, 'biji-bijian, kacang'],
+  [/\bnasi\b|bubur/, 15, 'nasi, bubur'],
+  [/\bair\b|susu|jus|\bsari\b|minuman|\bteh\b|kopi|santan|kaldu|kuah|\bsop\b|\bsup\b|soto|yog[h]?urt|kefir|\bes\b/, 15, 'cairan (1 ml ≈ 1 g)'],
+];
+function spoonInfo(f) {
+  const n = f.n.toLowerCase(), k = (f.k || '').toLowerCase();
+  for (const [re, g, lb] of SPOON) if (re.test(n)) return { sdm: g, lb, est: false };
+  if (k === 'minuman' || k === 'susu') return { sdm: 15, lb: 'cairan (1 ml ≈ 1 g)', est: false };
+  if (k === 'lemak dan minyak') return { sdm: 13.5, lb: 'minyak', est: false };
+  return { sdm: 12, lb: 'makanan padat/potongan, perkiraan kasar', est: true };
+}
+const UNITS = [['g', 'gram'], ['sdm', 'sdm'], ['sdt', 'sdt']];
+const unitG = (f, u) => u === 'sdm' ? spoonInfo(f).sdm : u === 'sdt' ? spoonInfo(f).sdm / 3 : 1;
+
 function portionButtons(f) {
   const opts = [];
   if (f.p && f.p !== 100) opts.push([f.p, `${f.pk || '1 porsi'} (${fmt(f.p)} g)`]);
@@ -547,11 +584,17 @@ function per100Table(f) {
 
 function openFoodSheet(f, opts = {}) {
   let g = opts.g || f.p || 100;
+  let unit = opts.u && opts.u !== 'g' ? opts.u : 'g';
   let meal = opts.meal || catatMeal;
   const isFav = favs.includes(f.id);
+  const sp = spoonInfo(f);
+  const q0 = unit === 'g' ? g : (opts.q || +(g / unitG(f, unit)).toFixed(1));
   const html = `<h2>${esc(f.n)}</h2><div class="muted">${srcBadge(f)} ${esc(f.k || '')}${f.c ? ' · ' + esc(f.c) : ''}</div>
     ${foodInfo(f)}
-    <label class="f">Berat yang dimakan (gram)<input type="number" id="fs-g" inputmode="decimal" min="0" step="any" value="${g}"></label>
+    <div class="f">Jumlah yang dimakan
+      <div class="amt"><input type="number" id="fs-q" inputmode="decimal" min="0" step="any" value="${q0}" aria-label="Jumlah">
+        <div class="seg-u" role="radiogroup" aria-label="Satuan">${UNITS.map(([k, l]) => `<button type="button" role="radio" data-u="${k}" aria-checked="${k === unit}" class="${k === unit ? 'on' : ''}">${l}</button>`).join('')}</div></div>
+      <div class="muted small" id="fs-conv" style="margin-top:6px"></div></div>
     ${portionButtons(f)}
     <label class="f">Waktu makan<select id="fs-m">${MEALS.map(([k, l]) => `<option value="${k}" ${k === meal ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
     <div id="fs-prev">${preview(f, g)}</div>
@@ -561,9 +604,11 @@ function openFoodSheet(f, opts = {}) {
     ${opts.entryId ? '<div class="row" style="margin-top:8px"><button class="btn danger grow" data-act="del">Hapus dari catatan</button></div>' : ''}`;
   const s = openSheet(html, ev => {
     const c = ev.target.closest('[data-g]');
-    if (c) { $('#fs-g', s).value = c.dataset.g; upd(); return; }
+    if (c) { setUnit('g'); $('#fs-q', s).value = c.dataset.g; upd(); return; }
+    const ub = ev.target.closest('[data-u]');
+    if (ub) { const gNow = curG(); setUnit(ub.dataset.u); $('#fs-q', s).value = gNow ? +(gNow / unitG(f, unit)).toFixed(unit === 'g' ? 0 : 1) : ''; upd(); return; }
     const b = ev.target.closest('[data-act]'); if (!b) return;
-    const gram = numIn($('#fs-g', s).value);
+    const gram = +curG().toFixed(1), qv = numIn($('#fs-q', s).value);
     const m = $('#fs-m', s).value;
     if (b.dataset.act === 'fav') {
       favs = favs.includes(f.id) ? favs.filter(x => x !== f.id) : [f.id, ...favs];
@@ -571,14 +616,14 @@ function openFoodSheet(f, opts = {}) {
       if (!extra[f.id] && f.s === 'USDA lengkap') { extra[f.id] = f; LS.set('extra', extra); indexFoods(); }
       if (tab === 'catat') renderResults();
     } else if (b.dataset.act === 'add') {
-      if (!gram || gram <= 0) { toast('Isi berat dalam gram'); return; }
-      addEntry(curDate, f, gram, m); indexFoods(); closeSheet();
-      toast(`${f.n.slice(0, 40)} · ${fmt(gram)} g ditambahkan ke ${MEAL_LABEL[m]}`);
+      if (!gram || gram <= 0) { toast('Isi jumlah yang dimakan'); return; }
+      addEntry(curDate, f, gram, m, unit, qv); indexFoods(); closeSheet();
+      toast(`${f.n.slice(0, 40)} · ${qtyLabel({ g: gram, u: unit, q: qv })} ditambahkan ke ${MEAL_LABEL[m]}`);
       catatMeal = m; render();
     } else if (b.dataset.act === 'save') {
-      if (!gram || gram <= 0) { toast('Isi berat dalam gram'); return; }
+      if (!gram || gram <= 0) { toast('Isi jumlah yang dimakan'); return; }
       const e = dayEntries(curDate).find(x => x.id === opts.entryId);
-      if (e) { e.g = gram; e.m = m; e.e = f.v.energi != null ? +(f.v.energi * gram / 100).toFixed(1) : e.e; e.pr = f.v.protein != null ? +(f.v.protein * gram / 100).toFixed(2) : e.pr; saveLog(); }
+      if (e) { e.g = gram; e.m = m; if (unit === 'g') { delete e.u; delete e.q; } else { e.u = unit; e.q = qv; } e.e = f.v.energi != null ? +(f.v.energi * gram / 100).toFixed(1) : e.e; e.pr = f.v.protein != null ? +(f.v.protein * gram / 100).toFixed(2) : e.pr; saveLog(); }
       closeSheet(); render();
     } else if (b.dataset.act === 'del') {
       LOG[curDate] = dayEntries(curDate).filter(x => x.id !== opts.entryId);
@@ -586,15 +631,22 @@ function openFoodSheet(f, opts = {}) {
       saveLog(); closeSheet(); render(); toast('Dihapus dari catatan');
     }
   });
-  const upd = () => { const gram = numIn($('#fs-g', s).value) || 0; $('#fs-prev', s).innerHTML = preview(f, gram); };
-  $('#fs-g', s).addEventListener('input', upd);
+  const curG = () => (numIn($('#fs-q', s).value) || 0) * unitG(f, unit);
+  const setUnit = u => { unit = u; s.querySelectorAll('[data-u]').forEach(x => { const on = x.dataset.u === u; x.classList.toggle('on', on); x.setAttribute('aria-checked', on); }); };
+  const upd = () => {
+    const gram = curG();
+    $('#fs-prev', s).innerHTML = preview(f, gram);
+    $('#fs-conv', s).innerHTML = unit === 'g' ? `1 sdm ≈ ${fmt(sp.sdm)} g · 1 sdt ≈ ${fmt(sp.sdm / 3)} g (${esc(sp.lb)})`
+      : `= <b class="num">${fmt(gram)} g</b> · 1 ${unit} ≈ ${fmt(unitG(f, unit))} g (${esc(sp.lb)})${sp.est ? '. Untuk makanan padat, gram lebih akurat.' : ''}`;
+  };
+  $('#fs-q', s).addEventListener('input', upd); upd();
   $('#fs-m', s).addEventListener('change', () => { const b = $('[data-act=add]', s); if (b) b.textContent = 'Tambahkan ke ' + MEAL_LABEL[$('#fs-m', s).value]; });
 }
 
 function openEntrySheet(id) {
   const e = dayEntries(curDate).find(x => x.id === id); if (!e) return;
   const f = foodOf(e);
-  if (f) { openFoodSheet(f, { g: e.g, meal: e.m, entryId: e.id }); return; }
+  if (f) { openFoodSheet(f, { g: e.g, u: e.u, q: e.q, meal: e.m, entryId: e.id }); return; }
   const s = openSheet(`<h2>${esc(e.n)}</h2><div class="note">Data makanan ini tidak ada lagi di database (mungkin makanan buatan sendiri yang sudah dihapus). Energi dan protein yang tersimpan tetap dihitung.</div>
     <div class="row"><button class="btn danger grow" data-act="del">Hapus dari catatan</button></div>`, ev => {
     if (ev.target.closest('[data-act=del]')) {
