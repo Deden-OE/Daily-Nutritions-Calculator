@@ -664,7 +664,8 @@ function renderCatat() {
   const kel = [...new Set(BASE.map(f => f.k).concat(custom.map(f => f.k)).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'id'));
   el.innerHTML = `<div class="chips" role="tablist" aria-label="Waktu makan">${MEALS.map(([k, l]) => `<button class="chip ${k === catatMeal ? 'on' : ''}" data-meal="${k}">${MEAL_EMOJI[k][0]} ${l}</button>`).join('')}</div>
     <div class="muted small">Tanggal: ${esc(fmtDate(curDate))}${curDate !== today() ? ' · <button class="btn link" data-act="to-today">ganti ke hari ini</button>' : ''}</div>
-    <input type="search" id="q" placeholder="Cari makanan, mis. nasi, telur rebus, tempe" value="${esc(catatQ)}" autocomplete="off" enterkeyhint="search" aria-label="Cari makanan">
+    <div class="row" style="align-items:center"><input type="search" id="q" class="grow" placeholder="Cari makanan, mis. nasi, telur rebus, tempe" value="${esc(catatQ)}" autocomplete="off" enterkeyhint="search" aria-label="Cari makanan" style="margin:0">
+      <button class="btn photo-btn" data-act="photo" aria-label="Foto makanan">📷<span>Foto</span></button></div>
     <div class="chips" id="src-chips">${SRC_CHIPS.map(([k, l]) => `<button class="chip ${k === catatSrc ? 'on' : ''}" data-src="${k}">${l}</button>`).join('')}</div>
     <div class="row"><select id="kel" class="grow" aria-label="Kelompok bahan" ${catatSrc === 'usdafull' ? 'disabled' : ''}><option value="">Semua kelompok</option>${kel.map(k => `<option ${k === catatKel ? 'selected' : ''}>${esc(k)}</option>`).join('')}</select>
       <button class="btn small" data-act="new-food" style="margin-top:4px;white-space:nowrap">+ Buat sendiri</button></div>
@@ -745,6 +746,7 @@ $('#view-catat').addEventListener('click', ev => {
   const p = t.closest('[data-fid]'); if (p) { const f = findFood(p.dataset.fid); if (f) openFoodSheet(f); return; }
   const a = t.closest('[data-act]');
   if (a && a.dataset.act === 'new-food') openCustomForm();
+  if (a && a.dataset.act === 'photo') pickPhoto();
   if (a && a.dataset.act === 'to-today') { curDate = today(); renderCatat(); }
 });
 
@@ -962,6 +964,10 @@ function renderData() {
     <div class="row wrap" style="margin-top:8px"><button class="btn small" data-act="new-food">+ Buat makanan</button>${custom.length ? '<button class="btn small" data-act="my-csv">Unduh untuk ditambahkan ke database (CSV)</button>' : ''}</div>
     <p class="muted">File CSV ini formatnya sama dengan <code>data/tambahan.csv</code>. Kirimkan ke project agar makanan Anda masuk database untuk semua orang.</p></div>
 
+  <div class="card"><h3 style="margin-top:0">📷 Foto makanan (Gemini)</h3>
+    <p class="muted">${gemKey() ? 'API key tersimpan di HP ini' + (LS.get('gemmodels', null) ? ' · model ' + esc(LS.get('gemmodels', [])[0]) : '') + '.' : 'Belum diatur. Butuh API key Google Gemini gratis.'}</p>
+    <div class="row wrap"><button class="btn small ${gemKey() ? '' : 'primary'}" data-act="gem">${gemKey() ? 'Ubah / hapus API key' : 'Atur API key'}</button></div></div>
+
   <div class="card"><h3 style="margin-top:0">💾 Cadangan</h3>
     <p class="muted">Semua data pribadi hanya tersimpan di perangkat ini. Unduh cadangan secara berkala, terutama sebelum ganti HP atau menghapus data browser.</p>
     <div class="row wrap"><button class="btn small primary" data-act="backup">Unduh cadangan lengkap (JSON)</button>
@@ -991,6 +997,7 @@ $('#view-data').addEventListener('click', async ev => {
   const b = ev.target.closest('[data-act]'); if (!b) return;
   const a = b.dataset.act, stamp = today();
   if (a === 'new-food') openCustomForm();
+  else if (a === 'gem') openKeySheet();
   else if (a === 'check') checkUpdate(true);
   else if (a === 'db-csv') download(`database-gizi-${stamp}.csv`, foodsCSV(BASE.concat(custom)));
   else if (a === 'my-csv') download(`makanan-saya-${stamp}.csv`, foodsCSV(custom));
@@ -1071,6 +1078,236 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (!hadController) return;
     toast('Aplikasi diperbarui. Muat ulang untuk versi terbaru.', 5000);
+  });
+}
+
+/* ---------- Foto makanan (Gemini) ---------- */
+/* Nutri Calc: foto makanan → daftar makanan via Google Gemini (API key milik pengguna, disimpan di perangkat). */
+const GEM = 'https://generativelanguage.googleapis.com/v1beta';
+const gemKey = () => LS.get('gemkey', '');
+
+async function gemModels(key) {
+  const r = await fetch(`${GEM}/models?pageSize=200`, { headers: { 'x-goog-api-key': key } });
+  if (!r.ok) throw await gemErr(r);
+  const j = await r.json();
+  const ok = (j.models || []).filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
+    .map(m => m.name.replace(/^models\//, ''))
+    .filter(n => /^gemini-[\d.]+-flash/.test(n) && !/tts|image|live|audio|embed|exp|thinking|native|computer/.test(n));
+  const ver = n => parseFloat((n.match(/gemini-([\d.]+)/) || [])[1] || 0);
+  const rank = n => (/lite/.test(n) ? 1 : 0) + (/preview/.test(n) ? 2 : 0) + (/-\d{3,}$|-\d{2}-\d{4}$/.test(n) ? 0.5 : 0);
+  ok.sort((a, b) => rank(a) - rank(b) || ver(b) - ver(a));
+  if (!ok.length) throw new Error('Tidak ada model Gemini Flash yang bisa dipakai dengan key ini.');
+  return ok.slice(0, 4);
+}
+
+async function gemErr(r) {
+  let msg = '';
+  try { const j = await r.json(); msg = (j.error && j.error.message) || ''; } catch (e) { /* abaikan */ }
+  if (r.status === 400 && /api key/i.test(msg)) return Object.assign(new Error('API key tidak valid. Periksa lagi di menu Data.'), { fatal: true });
+  if (r.status === 403) return Object.assign(new Error('API key ditolak (403). Pastikan key dibuat di Google AI Studio dan Generative Language API aktif.'), { fatal: true });
+  if (r.status === 429) return Object.assign(new Error('Kuota gratis Gemini sedang habis. Tunggu sebentar (batas per menit) atau coba lagi besok.'), { quota: true });
+  return new Error(`Gemini error ${r.status}${msg ? ': ' + msg.slice(0, 160) : ''}`);
+}
+
+function resizeImage(file, max = 1024) {
+  return new Promise((res, rej) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const sc = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas'); c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+      const d = c.toDataURL('image/jpeg', 0.82); res({ b64: d.split(',')[1], url: d });
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('Gambar tidak bisa dibaca. Coba foto lain (JPG/PNG).')); };
+    img.src = url;
+  });
+}
+
+const FOTO_PROMPT = `Kamu ahli gizi Indonesia. Kenali semua makanan dan minuman di foto ini.
+Pisahkan per komponen yang dimakan (mis. nasi putih, ayam goreng, sambal, lalapan, kerupuk, es teh manis), jangan digabung jadi satu hidangan kecuali memang satu kesatuan (mis. bakso kuah, soto, gado-gado).
+Perkirakan berat bagian yang dimakan dalam gram (tanpa tulang/kulit/piring), berdasarkan ukuran piring, sendok, tangan, atau benda lain di foto. Untuk minuman, 1 ml ≈ 1 g.
+kata_kunci: 1–3 kata kunci pencarian pendek dalam Bahasa Indonesia untuk database gizi, dari paling spesifik ke paling umum (mis. ["ayam goreng", "ayam"]).
+Isi juga perkiraan gizi untuk berat tersebut. Jika foto bukan makanan/minuman, kembalikan items kosong.`;
+
+const FOTO_SCHEMA = {
+  type: 'OBJECT', properties: {
+    items: { type: 'ARRAY', items: { type: 'OBJECT', properties: {
+      nama: { type: 'STRING' }, gram: { type: 'NUMBER' }, minuman: { type: 'BOOLEAN' },
+      kata_kunci: { type: 'ARRAY', items: { type: 'STRING' } }, yakin: { type: 'STRING', enum: ['tinggi', 'sedang', 'rendah'] },
+      energi: { type: 'NUMBER' }, protein: { type: 'NUMBER' }, lemak: { type: 'NUMBER' }, kh: { type: 'NUMBER' },
+      serat: { type: 'NUMBER' }, gula: { type: 'NUMBER' }, natrium: { type: 'NUMBER' } },
+      required: ['nama', 'gram', 'kata_kunci', 'energi', 'protein', 'lemak', 'kh'] } },
+    catatan: { type: 'STRING' } }, required: ['items'] };
+
+async function gemAnalyze(b64) {
+  const key = gemKey(); if (!key) throw Object.assign(new Error('Belum ada API key.'), { nokey: true });
+  let models = LS.get('gemmodels', null);
+  if (!models || !models.length) { models = await gemModels(key); LS.set('gemmodels', models); }
+  let last;
+  for (const m of models) {
+    const r = await fetch(`${GEM}/models/${m}:generateContent`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+      body: JSON.stringify({ contents: [{ parts: [{ inline_data: { mime_type: 'image/jpeg', data: b64 } }, { text: FOTO_PROMPT }] }],
+        generationConfig: { responseMimeType: 'application/json', responseSchema: FOTO_SCHEMA, temperature: 0.2 } })
+    });
+    if (!r.ok) {
+      last = await gemErr(r);
+      if (last.fatal) throw last;
+      if (r.status === 404) { LS.set('gemmodels', null); }
+      continue; // coba model berikutnya (kuota per model terpisah)
+    }
+    const j = await r.json();
+    const txt = ((j.candidates || [])[0]?.content?.parts || []).map(p => p.text || '').join('').replace(/^```(json)?|```$/g, '').trim();
+    if (!txt) throw new Error('Gemini tidak memberi jawaban (mungkin foto diblokir filter keamanan). Coba foto lain.');
+    const out = JSON.parse(txt); out.model = m; return out;
+  }
+  throw last || new Error('Gagal menghubungi Gemini.');
+}
+
+const FM_STOP = new Set(['segar', 'mentah', 'matang', 'masakan', 'resep', 'rumahan', 'dengan', 'tanpa', 'dan', 'porsi', 'buah', 'per', 'biasa', 'usda', 'tkpi', 'kering', 'rebus', 'utuh']);
+const fmToks = s => norm(String(s).replace(/\(.*?\)/g, ' ')).split(' ').filter(t => t.length > 1 && !FM_STOP.has(t) && !/^\d/.test(t));
+function fotoMatch(it) {
+  const all = BASE.concat(custom), sc = new Map();
+  const kws = (it.kata_kunci || []).concat([it.nama]).filter(Boolean);
+  const want = new Set(kws.flatMap(fmToks));
+  kws.forEach((q, ki) => searchList(all, q, 6).forEach((f, r) => {
+    const extra = fmToks(f.n).filter(t => !want.has(t)).length;
+    let v = r * 0.6 + ki * 0.8 + extra * 1.5 + (f.k === 'Restoran & cepat saji' ? 2.5 : 0) + (f.s === 'TKPI' ? -0.3 : 0);
+    if (fmToks(f.n).join(' ') === fmToks(q).join(' ')) v -= 2;
+    if (!sc.has(f.id) || sc.get(f.id).v > v) sc.set(f.id, { f, v, extra });
+  }));
+  const ranked = [...sc.values()].sort((x, y) => x.v - y.v).slice(0, 6);
+  return { cands: ranked.map(x => x.f), good: ranked.length && ranked[0].extra === 0 };
+}
+
+function aiFood(it) {
+  const g = it.gram > 0 ? it.gram : 100, v = {};
+  for (const k of ['energi', 'protein', 'lemak', 'kh', 'serat', 'gula', 'natrium']) if (it[k] != null && isFinite(it[k])) v[k] = +(it[k] * 100 / g).toFixed(3);
+  return { id: 'ai-' + uid(), n: it.nama + ' (perkiraan AI)', k: 'Perkiraan AI', s: 'Sendiri', c: '', p: g, pk: '1 porsi di foto', v,
+    note: 'Perkiraan Gemini dari foto, ' + fmtDate(today()), src: 'Perkiraan AI (Gemini) dari foto' };
+}
+
+function openKeySheet(after) {
+  const s = openSheet(`<h2>📷 Foto makanan (Gemini)</h2>
+    <p>Fitur ini memakai Google Gemini dengan <b>kuota gratis</b>. Anda perlu API key sendiri (gratis, sekali saja):</p>
+    <ol class="small" style="padding-left:18px">
+      <li>Buka <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>, masuk dengan akun Google.</li>
+      <li>Tekan <b>Create API key</b> (atau "Buat kunci API"), salin key-nya (diawali <code>AIza…</code>).</li>
+      <li>Tempel di bawah, lalu tekan Simpan.</li></ol>
+    <label class="f">API key Gemini<input type="password" id="gk" autocomplete="off" placeholder="AIza…" value="${esc(gemKey())}"></label>
+    <div class="note small">Key hanya disimpan di HP ini, tidak dikirim ke mana pun selain Google. Di kuota gratis, Google boleh memakai foto untuk melatih modelnya, jadi jangan kirim foto pribadi. Batas gratis per menit/per hari diatur Google dan bisa berubah.</div>
+    <div class="row" style="margin-top:12px">${gemKey() ? '<button class="btn danger" data-act="gk-del">Hapus key</button>' : ''}<button class="btn primary grow" data-act="gk-save">Simpan & cek</button></div>
+    <div id="gk-msg" class="muted small" style="margin-top:8px"></div>`, async ev => {
+    const b = ev.target.closest('[data-act]'); if (!b) return;
+    if (b.dataset.act === 'gk-del') { LS.set('gemkey', ''); LS.set('gemmodels', null); closeSheet(); toast('API key dihapus'); if (tab === 'data') render(); return; }
+    const key = $('#gk', s).value.trim();
+    if (!/^[\w-]{20,}$/.test(key)) { $('#gk-msg', s).textContent = 'Format key tidak dikenali. Salin ulang dari AI Studio.'; return; }
+    b.disabled = true; $('#gk-msg', s).textContent = 'Mengecek key…';
+    try {
+      const ms = await gemModels(key);
+      LS.set('gemkey', key); LS.set('gemmodels', ms);
+      closeSheet(); toast('Key tersimpan. Model: ' + ms[0]);
+      if (after) after(); else if (tab === 'data') render();
+    } catch (e) { $('#gk-msg', s).textContent = e.message; b.disabled = false; }
+  });
+}
+
+function pickPhoto() {
+  if (!gemKey()) { openKeySheet(pickPhoto); return; }
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/*';
+  inp.addEventListener('change', () => { if (inp.files[0]) runPhoto(inp.files[0]); });
+  inp.click();
+}
+
+async function runPhoto(file) {
+  let img;
+  try { img = await resizeImage(file); } catch (e) { toast(e.message); return; }
+  openSheet(`<h2>📷 Menganalisis foto…</h2><img src="${img.url}" alt="" class="foto-prev"><div class="empty"><span class="spin"></span> Gemini sedang mengenali makanan. Biasanya 5–15 detik.</div>`);
+  let res;
+  try { res = await gemAnalyze(img.b64); }
+  catch (e) {
+    if (e.nokey || e.fatal) { closeSheet(); toast(e.message, 5000); if (e.fatal) openKeySheet(); return; }
+    openSheet(`<h2>Foto belum bisa dianalisis</h2><img src="${img.url}" alt="" class="foto-prev"><div class="note">${esc(e.message)}</div>
+      <div class="row"><button class="btn grow" data-act="close">Tutup</button></div>`, ev => { if (ev.target.closest('[data-act=close]')) closeSheet(); });
+    return;
+  }
+  showPhotoResult(img, res);
+}
+
+function showPhotoResult(img, res) {
+  const items = (res.items || []).filter(it => it && it.nama).map(it => {
+    const m = fotoMatch(it), c = m.cands;
+    return { it, cands: c, pick: m.good ? c[0].id : 'ai', g: Math.round(it.gram > 0 ? it.gram : 100), on: true };
+  });
+  if (!items.length) {
+    openSheet(`<h2>Tidak ada makanan terdeteksi</h2><img src="${img.url}" alt="" class="foto-prev"><p class="muted">${esc(res.catatan || 'Coba foto lebih dekat dan terang, dengan seluruh piring terlihat.')}</p>
+      <div class="row"><button class="btn grow" data-act="close">Tutup</button></div>`, ev => { if (ev.target.closest('[data-act=close]')) closeSheet(); });
+    return;
+  }
+  const foodFor = x => x.pick === 'ai' ? (x._ai || (x._ai = aiFood(x.it))) : FOODS.get(x.pick);
+  const kc = x => { const f = foodFor(x); return f && f.v.energi != null ? f.v.energi * x.g / 100 : null; };
+  const row = (x, i) => {
+    const yk = x.it.yakin === 'rendah' ? ' <span class="tag warn">ragu</span>' : '';
+    return `<div class="fr ${x.on ? '' : 'off'}" data-i="${i}">
+      <label class="fr-h"><input type="checkbox" data-on="${i}" ${x.on ? 'checked' : ''}><b>${esc(x.it.nama)}</b>${yk}</label>
+      <select data-pick="${i}" aria-label="Padanan database untuk ${esc(x.it.nama)}">
+        ${x.cands.map(f => `<option value="${esc(f.id)}" ${f.id === x.pick ? 'selected' : ''}>${esc(f.n)} · ${fmt(f.v.energi)} kkal/100 g</option>`).join('')}
+        <option value="ai" ${x.pick === 'ai' ? 'selected' : ''}>Pakai perkiraan AI (${fmt(x.it.energi)} kkal untuk ${fmt(x.it.gram)} g)</option>
+        <option value="cari">🔍 Cari manual…</option></select>
+      <input type="search" data-cq="${i}" placeholder="Ketik nama makanan, mis. ${esc(x.it.nama)}" ${x.searching ? '' : 'hidden'} autocomplete="off">
+      <div class="fr-g"><input type="number" inputmode="decimal" min="0" step="any" data-g="${i}" value="${x.g}" aria-label="Berat gram"><span class="muted">g</span>
+        <span class="num grow right" data-kc="${i}">${fmt(kc(x))} kkal</span></div></div>`;
+  };
+  const total = () => items.filter(x => x.on).reduce((a, x) => a + (kc(x) || 0), 0);
+  const s = openSheet(`<h2>📷 Hasil foto</h2><div class="foto-top"><img src="${img.url}" alt="Foto makanan" class="foto-prev sm">
+      <div class="muted small">${items.length} item terdeteksi. Periksa padanan di database dan beratnya, lalu simpan. Berat dari foto hanya perkiraan.${res.catatan ? '<br>' + esc(res.catatan) : ''}</div></div>
+    <div id="fr-list">${items.map(row).join('')}</div>
+    <label class="f">Waktu makan<select id="fr-m">${MEALS.map(([k, l]) => `<option value="${k}" ${k === catatMeal ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+    <div class="row" style="margin-top:12px;align-items:center"><span class="grow"><b class="num" id="fr-tot">${fmt(total(), 'kkal')}</b> kkal total</span>
+      <button class="btn primary" data-act="fr-add">Tambahkan</button></div>
+    <p class="muted small">Dianalisis oleh ${esc(res.model || 'Gemini')}. Nilai gizi diambil dari database yang dipilih; "perkiraan AI" disimpan sebagai makanan buatan Anda.</p>`, ev => {
+    const b = ev.target.closest('[data-act=fr-add]'); if (!b) return;
+    const m = $('#fr-m', s).value, chosen = items.filter(x => x.on && x.g > 0 && x.pick !== 'cari');
+    if (!chosen.length) { toast('Pilih minimal satu item'); return; }
+    for (const x of chosen) {
+      let f = foodFor(x);
+      if (x.pick === 'ai') { custom = [f, ...custom]; LS.set('custom', custom); indexFoods(); }
+      addEntry(curDate, f, x.g, m);
+    }
+    indexFoods(); closeSheet(); catatMeal = m;
+    toast(`${chosen.length} item dari foto ditambahkan ke ${MEAL_LABEL[m]}`); switchTab('hari');
+  });
+  const refresh = i => { const x = items[i]; $(`[data-kc="${i}"]`, s).textContent = fmt(kc(x)) + ' kkal'; $('#fr-tot', s).textContent = fmt(total(), 'kkal'); };
+  s.addEventListener('change', ev => {
+    const t = ev.target;
+    if (t.dataset.on != null) { const i = +t.dataset.on; items[i].on = t.checked; t.closest('.fr').classList.toggle('off', !t.checked); refresh(i); }
+    if (t.dataset.pick != null) {
+      const i = +t.dataset.pick;
+      if (t.value === 'cari') {
+        items[i].searching = true; items[i].pick = items[i].cands.length ? items[i].cands[0].id : 'ai';
+        $(`.fr[data-i="${i}"]`, s).outerHTML = row(items[i], i); refresh(i);
+        const q = $(`[data-cq="${i}"]`, s); q.focus(); return;
+      }
+      items[i].pick = t.value; refresh(i);
+    }
+  });
+  let cqT;
+  s.addEventListener('input', ev => {
+    const t = ev.target;
+    if (t.dataset.g != null) { const i = +t.dataset.g; items[i].g = numIn(t.value) || 0; refresh(i); }
+    if (t.dataset.cq != null) {
+      const i = +t.dataset.cq; clearTimeout(cqT);
+      cqT = setTimeout(() => {
+        const r = t.value.trim() ? searchList(BASE.concat(custom), t.value, 10) : [];
+        if (!r.length) return;
+        items[i].cands = r; items[i].pick = r[0].id;
+        const sel = $(`[data-pick="${i}"]`, s), x = items[i];
+        sel.innerHTML = x.cands.map(f => `<option value="${esc(f.id)}" ${f.id === x.pick ? 'selected' : ''}>${esc(f.n)} · ${fmt(f.v.energi)} kkal/100 g</option>`).join('')
+          + `<option value="ai">Pakai perkiraan AI (${fmt(x.it.energi)} kkal untuk ${fmt(x.it.gram)} g)</option><option value="cari">🔍 Cari manual…</option>`;
+        refresh(i);
+      }, 200);
+    }
   });
 }
 

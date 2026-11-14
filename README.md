@@ -67,3 +67,7 @@ Untuk ibu hamil dan menyusui, kebutuhan tambahan dari Permenkes 28/2019 ditambah
 - NutriNusa (nutrinusa.id), kategori Fast Food, Jajanan Pasar, Makanan Instan, Menu Kafe, Menu Sehat, Karbohidrat, Protein, Sayuran, Buah-buahan (dibaca 13-11-2026).
 
 Aplikasi ini alat bantu edukasi, bukan pengganti saran dokter atau ahli gizi.
+
+## Foto makanan (Google Gemini)
+
+Tab Catat → tombol **📷 Foto**. Foto dikirim ke Google Gemini memakai API key milik pengguna (gratis, dibuat di https://aistudio.google.com/apikey), lalu hasilnya dicocokkan ke database. Key hanya disimpan di perangkat (localStorage `kg2.gemkey`) dan bisa diubah/dihapus di tab Data. Model Flash dipilih otomatis dari daftar model key tersebut; bila kuota satu model habis, aplikasi mencoba model berikutnya. Item tanpa padanan di database bisa disimpan sebagai "perkiraan AI" (masuk ke Makanan buatan saya).

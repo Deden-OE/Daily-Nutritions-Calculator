@@ -136,7 +136,7 @@ p { margin: 6px 0; }
 .btn.round { width: 40px; height: 40px; padding: 0; border-radius: 50%; display: grid; place-items: center; font-size: 18px; }
 
 label.f { display: block; margin: 12px 0 0; font-size: 13px; font-weight: 600; color: var(--text-2); }
-input[type=text], input[type=number], input[type=search], input[type=date], select, textarea {
+input[type=text], input[type=password], input[type=number], input[type=search], input[type=date], select, textarea {
   width: 100%; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 14px; background: var(--surface);
   margin-top: 5px; font-size: 16px;
 }
@@ -306,3 +306,18 @@ ul li { margin: 4px 0; }
 .pm { display: flex; flex-direction: column; gap: 2px; }
 .pm b { font-size: 16px; }
 .pm .bar { margin-top: 4px; }
+
+.photo-btn { flex: none; display: flex; align-items: center; gap: 4px; font-weight: 700; min-height: 46px; background: var(--tint); border-color: transparent; color: var(--accent); }
+.foto-prev { width: 100%; max-height: 240px; object-fit: cover; border-radius: 16px; margin: 8px 0; }
+.foto-prev.sm { width: 84px; height: 84px; flex: none; margin: 0; }
+.foto-top { display: flex; gap: 12px; align-items: center; margin: 8px 0 4px; }
+.fr { border: 1px solid var(--line); border-radius: 16px; padding: 10px 12px; margin: 8px 0; display: grid; gap: 8px; }
+.fr.off { opacity: .5; }
+.fr-h { display: flex; align-items: center; gap: 8px; }
+.fr-h input { width: 20px; height: 20px; margin: 0; accent-color: var(--pine); }
+.fr select, .fr input[type=search] { margin: 0; }
+.fr-g { display: flex; align-items: center; gap: 8px; }
+.fr-g input { width: 96px; margin: 0; }
+.right { text-align: right; }
+.spin { display: inline-block; width: 18px; height: 18px; border: 3px solid var(--tint); border-top-color: var(--pine); border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -4px; margin-right: 6px; }
+@keyframes spin { to { transform: rotate(360deg); } }
