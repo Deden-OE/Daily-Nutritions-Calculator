@@ -1,6 +1,6 @@
 /* Service worker: aplikasi tetap bisa dipakai tanpa internet.
    Strategi: utamakan jaringan (agar selalu dapat versi terbaru), pakai cache bila offline. */
-const CACHE = 'nutri-calc-v11';
+const CACHE = 'nutri-calc-v12';
 const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'data/foods.json', 'data/akg.json', 'data/version.json'];
 
 self.addEventListener('install', e => {
@@ -23,11 +23,15 @@ self.addEventListener('fetch', e => {
       const hit = await cache.match(key);
       if (hit) return hit;
     }
+    // Database (foods.json ±900 KB) butuh waktu lebih lama di jaringan HP: beri waktu 30 detik.
+    // Kalau tetap lewat batas waktu, unduhan diteruskan di latar dan tetap disimpan ke cache.
+    const data = /\/data\/[^/]+\.json/.test(key);
+    const net = fetch(req, { cache: 'no-cache' }).then(r => { if (r.ok) cache.put(key, r.clone()); return r; });
     try {
-      const fresh = await timeout(big ? 60000 : 6000, fetch(req, { cache: 'no-cache' }));
-      if (fresh.ok) cache.put(key, fresh.clone());
+      const fresh = await timeout(big ? 60000 : data ? 30000 : 6000, net);
       return fresh;
     } catch (err) {
+      e.waitUntil(net.catch(() => {}));
       const hit = await cache.match(key) || (req.mode === 'navigate' ? await cache.match('index.html') : null);
       if (hit) return hit;
       throw err;

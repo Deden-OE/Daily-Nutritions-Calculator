@@ -1092,6 +1092,8 @@ async function loadDB(ver) {
   NUTR = fd.nutrients; NK = NUTR.map(n => n.key); NMAP = Object.fromEntries(NUTR.map(n => [n.key, n]));
   BASE = fd.foods; DBV = fd.version || ver; LS.set('dbv', DBV);
   indexFoods();
+  // Dapat salinan lama dari cache (mis. jaringan lambat): coba lagi sebentar lagi.
+  if (ver && ver !== 'x' && fd.version && fd.version !== ver && !loadDB.retry) { loadDB.retry = 1; setTimeout(() => { loadDB.retry = 0; checkUpdate(false); }, 20000); }
 }
 
 /* ---------- Mulai ---------- */
