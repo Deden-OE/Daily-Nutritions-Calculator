@@ -254,7 +254,25 @@ function switchTab(t) {
   $$('.view').forEach(v => { v.hidden = v.id !== 'view-' + t; });
   render();
   window.scrollTo(0, 0);
+  syncBack();
 }
+
+/* Tombol kembali Android (dan geser-kembali iOS): tutup panel dulu, lalu kembali ke Hari ini,
+   baru setelah itu keluar aplikasi. Caranya: selama ada panel terbuka atau tab selain Hari ini,
+   riwayat browser punya satu langkah tambahan yang "ditangkap" di sini. */
+let skipPop = false;
+function syncBack() {
+  const deep = !!$('#sheet') || tab !== 'hari';
+  const has = !!(history.state && history.state.nc);
+  if (deep && !has) history.pushState({ nc: 1 }, '');
+  else if (!deep && has) { skipPop = true; history.back(); }
+}
+addEventListener('popstate', () => {
+  if (skipPop) { skipPop = false; syncBack(); return; }
+  if ($('#sheet')) removeSheet();
+  else if (tab !== 'hari') { switchTab('hari'); return; }
+  syncBack();
+});
 
 function render() {
   const p = prof();
@@ -533,7 +551,7 @@ $('#view-hari').addEventListener('click', ev => {
 
 /* ---------- Sheet (panel bawah) ---------- */
 function openSheet(html, onClick) {
-  closeSheet();
+  removeSheet();
   const bg = document.createElement('div');
   bg.className = 'sheet-bg'; bg.id = 'sheet';
   bg.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">${html}</div>`;
@@ -541,10 +559,12 @@ function openSheet(html, onClick) {
   if (onClick) bg.addEventListener('click', onClick);
   document.body.appendChild(bg);
   document.body.style.overflow = 'hidden';
+  syncBack();
   const first = $('input:not([type=hidden]),select', bg); if (first && !matchMedia('(pointer:coarse)').matches) first.focus();
   return bg;
 }
-function closeSheet() { const s = $('#sheet'); if (s) s.remove(); document.body.style.overflow = ''; }
+function removeSheet() { const s = $('#sheet'); if (s) s.remove(); document.body.style.overflow = ''; }
+function closeSheet() { removeSheet(); syncBack(); }
 document.addEventListener('keydown', ev => { if (ev.key === 'Escape') closeSheet(); });
 
 function srcBadge(f) {
